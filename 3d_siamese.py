@@ -39,36 +39,29 @@ print("test_beingn: {}, test_malignant: {}, validation_benign: {}, validation_ma
       len(train_benign), len(train_malignant), len(validation_malignant), len(validation_benign)))
 
 # load data 
-data_benign = np.ndarray((0,16,64,64))
-for benign in train_benign: #go through benign examples
-    valarr = benign.split('_')
-    if (valarr[1] == "img"):
-        data = np.load(os.path.join(ct_folder, benign))
-        data_x = np.append(data_benign, [data], axis = 0)
-        # data augmentation: there are 8 flips of image
-        data_benign = np.append(data_benign, [np.flip(data, (0))], axis = 0)
-        data_benign = np.append(data_benign, [np.flip(data, (1))], axis = 0)
-        data_benign = np.append(data_benign, [np.flip(data, (2))], axis = 0)
-        data_benign = np.append(data_benign, [np.flip(data, (0, 1))], axis = 0)
-        data_benign = np.append(data_benign, [np.flip(data, (1, 2))], axis = 0)
-        data_benign = np.append(data_benign, [np.flip(data, (0, 2))], axis = 0)
-        data_benign = np.append(data_benign, [np.flip(data, (0, 1, 2))], axis = 0)
+def load_train_data(dataset_list, augment = None):
+      data_nodules = np.ndarray((0,16,64,64))
+      for nodule in dataset_list: #go through benign examples
+            valarr = nodule.split('_')
+            if (valarr[1] == "img"):
+                  data = np.load(os.path.join(ct_folder, nodule))
+                  data_nodules = np.append(data_nodules, [data], axis = 0)
+                  # data augmentation: there are 8 flips of image
+                  if augment:
+                        data_nodules = np.append(data_nodules, [np.flip(data, (0))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (1))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (2))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 1))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (1, 2))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 2))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 1, 2))], axis = 0)
+      return data_nodules
 
-        
-data_malignant = np.ndarray((0,16,64,64))
-for malignant in train_malignant: #go through malignant examples
-    valarr = malignant.split('_')
-    if (valarr[1] == "img"):
-        data = np.load(os.path.join(cancer_folder, malignant))
-        data_malignant = np.append(data_malignant, [data], axis = 0)
-        # data augmentation: there are 8 flips of image
-        data_malignant = np.append(data_malignant, [np.flip(data, (0))], axis = 0)
-        data_malignant = np.append(data_malignant, [np.flip(data, (1))], axis = 0)
-        data_malignant = np.append(data_malignant, [np.flip(data, (2))], axis = 0)
-        data_malignant = np.append(data_malignant, [np.flip(data, (0, 1))], axis = 0)
-        data_malignant = np.append(data_malignant, [np.flip(data, (1, 2))], axis = 0)
-        data_malignant = np.append(data_malignant, [np.flip(data, (0, 2))], axis = 0)
-        data_malignant = np.append(data_malignant, [np.flip(data, (0, 1, 2))], axis = 0)
+data_benign = load_train_data(train_benign, augment = True)
+data_malignant = load_train_data(train_malignant, augment = True)
+
+data_validation_benign = load_train_data(validation_benign)
+data_validation_malignant = load_train_data(validation_malignant)
 
 # Making siamese network for nodules comparison
 
@@ -144,9 +137,34 @@ def siamese_accuracy(y_true, y_pred):
     '''
     return K.mean(K.equal(y_true, K.cast(y_pred > threshold, y_true.dtype)))
 
-def knn_accuracy(y_true, y_pred):
-    threshold = 1
+def knn_for_nodule(nodule, k = 5, threshold = 1):
+    rho_arr = np.array([])
+    #predictors_benign = np.concatenate((np.expand_dims(data_benign, axis=0), np.expand_dims(np.repeat(np.expand_dims(nodule, axis=0), len(data_benign), axis=0), axis=0)), axis = 0)
+    #rho_benign = model.predict(predictors_benign)
+    rho_benign = model.predict([np.tile(nodule, (len(data_benign), 1, 1, 1)), data_benign])
+    #predictors_malignant = np.concatenate((np.expand_dims(data_malignant, axis=0), np.expand_dims(np.repeat(np.expand_dims(nodule, axis=0), len(data_malignant), axis=0), axis=0)), axis = 0)
+    #rho_malignant = model.predict(predictors_malignant)
+    rho_malignant = model.predict([np.tile(nodule, (len(data_malignant), 1, 1, 1)), data_malignant])
 
+    rho_benign = np.sort(rho_benign)
+    rho_malignant = np.sort(rho_malignant)
+    
+    clazz = 0
+    while k > 0:
+          if (rho_benign[0] < rho_malignant[0]) and (rho_benign[0] < threshold):
+                clazz -= 1
+          elif (rho_benign[0] >= rho_malignant[0]) and (rho_malignant[0] < threshold):
+                clazz += 1
+          k -= 1
+
+    if (clazz > 0):
+          return 1 # malignant
+    elif (clazz < 0):
+          return 0 # benign
+    else:
+          return None #undefined
+
+    
 #https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
 optimizer = tf.keras.optimizers.Adam(lr = 0.000006)
 #optimizer = tf.keras.optimizers.SGD(lr=0.0005, momentum=0.3)
@@ -155,6 +173,8 @@ model.compile(
     loss=contrastive_loss,
     metrics=['accuracy', siamese_accuracy]
 )
+
+result = knn_for_nodule(data_validation_benign[0])
 
 # automatically forming training pairs
 # N is half of of the batch size
