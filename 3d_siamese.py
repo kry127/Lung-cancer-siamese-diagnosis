@@ -13,20 +13,34 @@ cancer_folder = 'cancer' # folder with cancerous tomography images
 ct_dataset = os.listdir(ct_folder)
 cancer_dataset = os.listdir(cancer_folder)
 
-ct_set = set(ct_dataset) # get set of all ct images and their masks
-malignant_set = set(cancer_dataset) # get ct images containing cancer (call it malignant)
-benign_set = ct_set - malignant_set # make list of benign nodules
+ct_set = np.array(ct_dataset) # get set of all ct images and their masks
+malignant_set = np.array(cancer_dataset) # get ct images containing cancer (call it malignant)
+benign_set = np.setxor1d(ct_set, malignant_set) # make list of benign nodules
 
-# check all correct
-print("All scans+masks count: {}, malignant: {}, union: {}, intersection: {}".format(
-      len(ct_set), len(malignant_set), len(ct_set | malignant_set), len(ct_set & malignant_set)))
+# print found classes
+print("beingn: {}, malignant: {}".format(
+      len(benign_set), len(malignant_set)))
 
+# forming training and validation set
+train_count = 4 #should be 70
+validation_count = 8 #should be 30
+
+np.random.shuffle(malignant_set)
+np.random.shuffle(benign_set)
+
+train_malignant = malignant_set[:train_count]
+train_benign = benign_set[:train_count]
+
+validation_malignant = malignant_set[train_count:train_count+validation_count]
+validation_benign = benign_set[train_count:train_count+validation_count]
+
+# print found classes
+print("test_beingn: {}, test_malignant: {}, validation_benign: {}, validation_malignant: {}".format(
+      len(train_benign), len(train_malignant), len(validation_malignant), len(validation_benign)))
 
 # load data 
-example_count_const = 8
-example_count = example_count_const
 data_benign = np.ndarray((0,16,64,64))
-for benign in benign_set: #go through benign examples
+for benign in train_benign: #go through benign examples
     valarr = benign.split('_')
     if (valarr[1] == "img"):
         data = np.load(os.path.join(ct_folder, benign))
@@ -39,14 +53,10 @@ for benign in benign_set: #go through benign examples
         data_benign = np.append(data_benign, [np.flip(data, (1, 2))], axis = 0)
         data_benign = np.append(data_benign, [np.flip(data, (0, 2))], axis = 0)
         data_benign = np.append(data_benign, [np.flip(data, (0, 1, 2))], axis = 0)
-    example_count -= 1
-    if example_count <= 0:
-          break
 
         
-example_count = example_count_const
 data_malignant = np.ndarray((0,16,64,64))
-for malignant in malignant_set: #go through malignant examples
+for malignant in train_malignant: #go through malignant examples
     valarr = malignant.split('_')
     if (valarr[1] == "img"):
         data = np.load(os.path.join(cancer_folder, malignant))
@@ -59,9 +69,6 @@ for malignant in malignant_set: #go through malignant examples
         data_malignant = np.append(data_malignant, [np.flip(data, (1, 2))], axis = 0)
         data_malignant = np.append(data_malignant, [np.flip(data, (0, 2))], axis = 0)
         data_malignant = np.append(data_malignant, [np.flip(data, (0, 1, 2))], axis = 0)
-    example_count -= 1
-    if example_count <= 0:
-          break
 
 # Making siamese network for nodules comparison
 
@@ -132,16 +139,13 @@ def contrastive_loss(y_true, y_pred):
 # custom metrics
 def siamese_accuracy(y_true, y_pred):
     threshold = 1
-    #y_true_np = np.array(y_true)
-    #y_pred_np = np.array(y_pred)
-    #tp = np.size(y_pred_np[y_true_np == 0] < threshold)
-    #tn = np.size(y_pred_np[y_true_np == 1] >= threshold)
-    #return tf.constant((tp + tn) / np.size(y_true_np))
-
     #https://github.com/tensorflow/tensorflow/issues/23133
     '''Compute classification accuracy with a fixed threshold on distances.
     '''
     return K.mean(K.equal(y_true, K.cast(y_pred > threshold, y_true.dtype)))
+
+def knn_accuracy(y_true, y_pred):
+    threshold = 1
 
 #https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
 optimizer = tf.keras.optimizers.Adam(lr = 0.000006)
@@ -182,3 +186,10 @@ for k in range(1, 100):
     pairs, pairs_y = form_pairs_auto(batch_size_quarter)
     print("Batch " + str(k))
     model.fit([pairs[0], pairs[1]], pairs_y, epochs = 10, batch_size=4*batch_size_quarter)
+
+# saving model is easy
+#https://stackoverflow.com/questions/52553593/tensorflow-keras-model-save-raise-notimplementederror
+model.save('./lung_cancer_siamese_conv3D.model')
+
+# loading model is also simple
+#new_model = tf.keras.models.load_model('lung_cancer_siamese_conv3D.model')
