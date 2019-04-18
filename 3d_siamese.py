@@ -17,11 +17,26 @@ ct_set = np.array(ct_dataset) # get set of all ct images and their masks
 malignant_set = np.array(cancer_dataset) # get ct images containing cancer (call it malignant)
 benign_set = np.setxor1d(ct_set, malignant_set) # make list of benign nodules
 
+# filtering -- leave only images
+def filter_data(dataset_list, prefix = "img"):
+      ret = np.array([])
+      for nodule in dataset_list: #go through benign examples
+            valarr = nodule.split('_')
+            if (valarr[1] == prefix):
+                  ret = np.append(ret, [nodule])
+      return ret
+
 
 # TODO There are masks too! we should filter them!
 
-# print found classes
-print("beingn: {}, malignant: {}".format(
+# print found classes + masks
+print("Img + masks. beingn: {}, malignant: {}".format(
+      len(benign_set), len(malignant_set)))
+
+benign_set = filter_data(benign_set)
+malignant_set = filter_data(malignant_set)
+
+print("Img. beingn: {}, malignant: {}".format(
       len(benign_set), len(malignant_set)))
 
 # forming training and validation set
@@ -141,12 +156,7 @@ def siamese_accuracy(y_true, y_pred):
     return K.mean(K.equal(y_true, K.cast(y_pred > threshold, y_true.dtype)))
 
 def knn_for_nodule(nodule, k = 5, threshold = 1):
-    rho_arr = np.array([])
-    #predictors_benign = np.concatenate((np.expand_dims(data_benign, axis=0), np.expand_dims(np.repeat(np.expand_dims(nodule, axis=0), len(data_benign), axis=0), axis=0)), axis = 0)
-    #rho_benign = model.predict(predictors_benign)
     rho_benign = model.predict([np.tile(nodule, (len(data_benign), 1, 1, 1)), data_benign])
-    #predictors_malignant = np.concatenate((np.expand_dims(data_malignant, axis=0), np.expand_dims(np.repeat(np.expand_dims(nodule, axis=0), len(data_malignant), axis=0), axis=0)), axis = 0)
-    #rho_malignant = model.predict(predictors_malignant)
     rho_malignant = model.predict([np.tile(nodule, (len(data_malignant), 1, 1, 1)), data_malignant])
 
     rho_benign = np.sort(rho_benign)
@@ -177,7 +187,22 @@ model.compile(
     metrics=['accuracy', siamese_accuracy]
 )
 
-result = knn_for_nodule(data_validation_benign[0])
+def knn_accuracy():
+      # ввести арбитраж на основе расстояния
+      # например, на основе экспонентациальной функции (e^-x)
+      N = 0
+      t = 0
+      for benign_nodule in data_validation_benign:
+            result = knn_for_nodule(benign_nodule)
+            N += 1
+            if result == 0:
+                  t += 1
+      for malignant_nodule in data_validation_malignant:
+            result = knn_for_nodule(malignant_nodule)
+            N += 1
+            if result == 1:
+                  t += 1
+      return t / N
 
 # automatically forming training pairs
 # N is half of of the batch size
@@ -207,8 +232,10 @@ def form_pairs_auto(Nhalf):
 for k in range(1, 100):
     batch_size_quarter = 5
     pairs, pairs_y = form_pairs_auto(batch_size_quarter)
-    print("Batch " + str(k))
     model.fit([pairs[0], pairs[1]], pairs_y, epochs = 10, batch_size=4*batch_size_quarter)
+    print("Batch {}, validation accuracy: {}".format(str(k), knn_accuracy()))
+    # лучше сделать подсчёт accuracy по ПАРАМ на валидационной выборке
+    # knn_accuracy сделать на ТЕСТОВОЙ
 
 # saving model is easy
 #https://stackoverflow.com/questions/52553593/tensorflow-keras-model-save-raise-notimplementederror
