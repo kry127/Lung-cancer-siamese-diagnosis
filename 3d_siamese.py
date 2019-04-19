@@ -81,6 +81,9 @@ data_malignant = load_train_data(train_malignant, augment = True)
 data_validation_benign = load_train_data(validation_benign)
 data_validation_malignant = load_train_data(validation_malignant)
 
+# forming pairs from validation
+valication_pairs = np.ndarray((0,2,16,64,64))
+
 # Making siamese network for nodules comparison
 
 # More info about Keras Layers: https://keras.io/layers/core/, https://keras.io/layers/convolutional/
@@ -156,26 +159,40 @@ def siamese_accuracy(y_true, y_pred):
     return K.mean(K.equal(y_true, K.cast(y_pred > threshold, y_true.dtype)))
 
 def knn_for_nodule(nodule, k = 5, threshold = 1):
+    # ввести арбитраж на основе расстояния
+    # например, на основе экспонентациальной функции (e^-x)
     rho_benign = model.predict([np.tile(nodule, (len(data_benign), 1, 1, 1)), data_benign])
     rho_malignant = model.predict([np.tile(nodule, (len(data_malignant), 1, 1, 1)), data_malignant])
 
-    rho_benign = np.sort(rho_benign)
-    rho_malignant = np.sort(rho_malignant)
-    
-    clazz = 0
-    while k > 0:
-          if (rho_benign[0] < rho_malignant[0]) and (rho_benign[0] < threshold):
-                clazz -= 1
-          elif (rho_benign[0] >= rho_malignant[0]) and (rho_malignant[0] < threshold):
-                clazz += 1
-          k -= 1
+    # учитывая расстояние threshold, отсекаем и сортируем данные
+    rho_benign = np.sort(rho_benign[np.where(rho_benign < threshold)])
+    rho_malignant = np.sort(rho_malignant[np.where(rho_malignant < threshold)])
 
-    if (clazz > 0):
+    # insufficient amount of neigbours
+    if (len(rho_benign) + len(rho_malignant) < 5):
+      return None
+
+    # далее, необходимо ввести экспонентациальную зависимость (e^-x) от каждого ближайшего соседа
+    # (гауссово распределение)
+    # по закону трёх сигм: sigma = threshold / 3. СТОИТ ЛИ ВВОДИТЬ?
+    weighter = np.vectorize(lambda x: np.sign(x)*np.e ** -np.abs(x))
+
+    rho = np.append(-rho_benign, rho_malignant)
+    rho_weights = weighter(rho)
+    
+    # TODO sort descending by module
+    rho_abs_weights = np.vectorize(lambda val: np.abs(val))(rho_weights)
+    rho_abs_weights_id_sorted = np.argsort(rho_abs_weights)
+    rho_weights = rho_weights[rho_abs_weights_id_sorted]
+
+    # TODO choose 5 biggest by module weights
+    # TODO sum chosen weights and pass to heavyside function
+    result = np.sum(rho_weights[-5:])
+
+    if (result > 0):
           return 1 # malignant
-    elif (clazz < 0):
+    elif (result <= 0):
           return 0 # benign
-    else:
-          return None #undefined
 
     
 #https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
@@ -187,18 +204,16 @@ model.compile(
     metrics=['accuracy', siamese_accuracy]
 )
 
-def knn_accuracy():
-      # ввести арбитраж на основе расстояния
-      # например, на основе экспонентациальной функции (e^-x)
+def knn_accuracy(k = 5, threshold = 1):
       N = 0
       t = 0
       for benign_nodule in data_validation_benign:
-            result = knn_for_nodule(benign_nodule)
+            result = knn_for_nodule(benign_nodule, k, threshold)
             N += 1
             if result == 0:
                   t += 1
       for malignant_nodule in data_validation_malignant:
-            result = knn_for_nodule(malignant_nodule)
+            result = knn_for_nodule(malignant_nodule, k, threshold)
             N += 1
             if result == 1:
                   t += 1
@@ -233,7 +248,7 @@ for k in range(1, 100):
     batch_size_quarter = 5
     pairs, pairs_y = form_pairs_auto(batch_size_quarter)
     model.fit([pairs[0], pairs[1]], pairs_y, epochs = 10, batch_size=4*batch_size_quarter)
-    print("Batch {}, validation accuracy: {}".format(str(k), knn_accuracy()))
+    print("Batch {}, validation accuracy: {}".format(str(k), knn_accuracy(threshold = 20)))
     # лучше сделать подсчёт accuracy по ПАРАМ на валидационной выборке
     # knn_accuracy сделать на ТЕСТОВОЙ
 
