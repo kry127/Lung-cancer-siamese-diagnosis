@@ -45,8 +45,9 @@ train_count = 60 # should be 100
 validation_count = 20 # should be 50
 train_pair_count = 400 # we take 1500 pairs every training step (75% training)
 validation_pair_count = 100 # we take 500 pairs for validation (25% validation)
-batch_size = 100 # how many pairs form loss function in every training step
-epochs_all = 30
+batch_size = 2 # how many pairs form loss function in every training step (2 recomended)
+epochs_all = 1 # global epochs (with pair change)
+steps_per_epoch = 500 # how many steps per epoch available
 
 print("Training batch size = {}".format(batch_size))
 
@@ -278,7 +279,7 @@ for N in range(1, epochs_all+1):
     pairs, pairs_y = form_pairs_auto(int(np.ceil(train_pair_count/4)),
                   data_benign, data_malignant)
     print("Epoch #{}/{} ".format(str(N), epochs_all))
-    model.fit(pairs, pairs_y, epochs = 5, verbose=2, batch_size=batch_size
+    model.fit(pairs, pairs_y, epochs = steps_per_epoch, verbose=2, batch_size=batch_size
                   , validation_data = validation_tuple)
     #print("Batch {}, validation accuracy: {}".format(str(N), knn_accuracy(threshold = 1)))
     # лучше сделать подсчёт accuracy по ПАРАМ на валидационной выборке
