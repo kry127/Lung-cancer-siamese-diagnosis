@@ -2,6 +2,10 @@ import tensorflow as tf
 from keras import backend as K
 import os
 import numpy as np
+import time
+
+#starting time count
+time_start = time.time()
 
 # Keras partial weight loading info:
 # https://stackoverflow.com/questions/43702323/how-to-load-only-specific-weights-on-keras
@@ -37,12 +41,14 @@ print("Img. beingn: {}, malignant: {}".format(
       len(benign_set), len(malignant_set)))
 
 # forming training and validation set
-train_count = 100 # should be 100
-validation_count = 50 # should be 50
-train_pair_count = 1500 # we take 1500 pairs every training step (75% training)
-validation_pair_count = 500 # we take 500 pairs for validation (25% validation)
-batch_size = 4 # how many pairs form loss function in every training step
-epochs_all = 50
+train_count = 60 # should be 100
+validation_count = 20 # should be 50
+train_pair_count = 400 # we take 1500 pairs every training step (75% training)
+validation_pair_count = 100 # we take 500 pairs for validation (25% validation)
+batch_size = 100 # how many pairs form loss function in every training step
+epochs_all = 30
+
+print("Training batch size = {}".format(batch_size))
 
 #halven the train count and validation count (for two classes)
 train_count = int(train_count/2)
@@ -82,11 +88,19 @@ def load_train_data(dataset_list, augment = None):
                         data_nodules = np.append(data_nodules, [np.flip(data, (0, 1, 2))], axis = 0)
       return data_nodules
 
+
+time_start_load = time.time()
+print("Start loading data at {} sec.".format(time_start_load - time_start))
 data_benign = load_train_data(train_benign, augment = True)
 data_malignant = load_train_data(train_malignant, augment = True)
+t_end = time.time()
+print("Training data loaded at {} sec. in {} sec.".format(t_end - time_start, t_end - time_start_load))
 
+time_start_load = time.time()
 data_validation_benign = load_train_data(validation_benign)
 data_validation_malignant = load_train_data(validation_malignant)
+t_end = time.time()
+print("Validation data loaded at {} in {} sec.".format(t_end - time_start, t_end - time_start_load))
 
 # Making siamese network for nodules comparison
 
@@ -103,7 +117,7 @@ ct_img2_r = tf.keras.layers.Reshape((16,64,64,1))(ct_img2)
 model = tf.keras.models.Sequential()
 
 # Let's create simple Conv2D layer, 28 batches, 10x10 kernels each
-model.add(tf.keras.layers.Conv3D(32, kernel_size=9,
+model.add(tf.keras.layers.Conv3D(128, kernel_size=9,
             activation=tf.nn.relu, input_shape=(16,64,64,1))) # (8, 56, 56)
 # Then, let's add a subsampling layer (https://keras.io/layers/pooling/)
 model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (4, 28, 28)
@@ -252,15 +266,19 @@ def form_pairs_auto(Nhalf, benign, malignant):
     
 
 # forming pairs from validation
+time_start_load = time.time()
+print("Start forming validation tuples at {} seconds".format(time_start_load - time_start))
 validation_tuple = form_pairs_auto(int(np.ceil(validation_pair_count/4)),
                   data_validation_benign, data_validation_malignant)
+t_end = time.time()
+print("Validation tuples formed at {} in {} sec.".format(t_end - time_start, t_end - time_start_load))
 
 # The model is ready to train!
-for N in range(1, epochs_all):
+for N in range(1, epochs_all+1):
     pairs, pairs_y = form_pairs_auto(int(np.ceil(train_pair_count/4)),
                   data_benign, data_malignant)
     print("Epoch #{}/{} ".format(str(N), epochs_all))
-    model.fit(pairs, pairs_y, epochs = 1, verbose=2, batch_size=batch_size
+    model.fit(pairs, pairs_y, epochs = 5, verbose=2, batch_size=batch_size
                   , validation_data = validation_tuple)
     #print("Batch {}, validation accuracy: {}".format(str(N), knn_accuracy(threshold = 1)))
     # лучше сделать подсчёт accuracy по ПАРАМ на валидационной выборке
@@ -276,7 +294,12 @@ model.save('./lung_cancer_siamese_conv3D.model')
 
 # final testing
 print("Computing knn distance-weighted accuracy on validation set")
-for k in range(3, 8, 2):
-      for threshold in [0.5, 1, 2]:
+k = 5
+threshold = 1
+#accuracy = knn_accuracy(k, threshold)
+#print("accuracy(k={}, threshold={}) = {}".format(k, threshold, accuracy))
+
+for k in range(5, 12, 2):
+#      for threshold in [0.5, 1, 2]:
             accuracy = knn_accuracy(k, threshold)
             print("accuracy(k={}, threshold={}) = {}".format(k, threshold, accuracy))

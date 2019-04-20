@@ -5,3 +5,5 @@ cancer/
 *.rar
 *.slurm
 *.model
+*.out
+*.err
