@@ -26,9 +26,6 @@ def filter_data(dataset_list, prefix = "img"):
                   ret = np.append(ret, [nodule])
       return ret
 
-
-# TODO There are masks too! we should filter them!
-
 # print found classes + masks
 print("Img + masks. beingn: {}, malignant: {}".format(
       len(benign_set), len(malignant_set)))
@@ -40,8 +37,16 @@ print("Img. beingn: {}, malignant: {}".format(
       len(benign_set), len(malignant_set)))
 
 # forming training and validation set
-train_count = 4 #should be 70
-validation_count = 8 #should be 30
+train_count = 100 # should be 100
+validation_count = 50 # should be 50
+train_pair_count = 1500 # we take 1500 pairs every training step (75% training)
+validation_pair_count = 500 # we take 500 pairs for validation (25% validation)
+batch_size = 4 # how many pairs form loss function in every training step
+epochs_all = 50
+
+#halven the train count and validation count (for two classes)
+train_count = int(train_count/2)
+validation_count = int(validation_count/2)
 
 np.random.shuffle(malignant_set)
 np.random.shuffle(benign_set)
@@ -52,8 +57,10 @@ train_benign = benign_set[:train_count]
 validation_malignant = malignant_set[train_count:train_count+validation_count]
 validation_benign = benign_set[train_count:train_count+validation_count]
 
+# TODO make save and load method of the list of training data
+
 # print found classes
-print("test_beingn: {}, test_malignant: {}, validation_benign: {}, validation_malignant: {}".format(
+print("train_beingn: {}, train_malignant: {}, validation_benign: {}, validation_malignant: {}".format(
       len(train_benign), len(train_malignant), len(validation_malignant), len(validation_benign)))
 
 # load data 
@@ -80,9 +87,6 @@ data_malignant = load_train_data(train_malignant, augment = True)
 
 data_validation_benign = load_train_data(validation_benign)
 data_validation_malignant = load_train_data(validation_malignant)
-
-# forming pairs from validation
-valication_pairs = np.ndarray((0,2,16,64,64))
 
 # Making siamese network for nodules comparison
 
@@ -122,7 +126,6 @@ model.add(tf.keras.layers.Conv3D(1024, kernel_size=(1, 3, 3), activation=tf.nn.r
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dense(1024, activation=tf.nn.sigmoid))
 
-# TODO -- Remove last layer from 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 
 ct_img_model1 = model(ct_img1_r)
@@ -221,14 +224,17 @@ def knn_accuracy(k = 5, threshold = 1):
 
 # automatically forming training pairs
 # N is half of of the batch size
-def form_pairs_auto(Nhalf):
+def form_pairs_auto(Nhalf, benign, malignant):
     pairs = np.ndarray((0,2,16,64,64))
     pairs_y = np.ndarray((0, 1))
     for i in range (0, Nhalf):
-      A = data_benign[np.random.randint(data_benign.shape[0]),:,:,:]
-      B = data_malignant[np.random.randint(data_malignant.shape[0]),:,:,:]
-      C = data_benign[np.random.randint(data_benign.shape[0]),:,:,:]
-      D = data_malignant[np.random.randint(data_malignant.shape[0]),:,:,:]
+      # replace = False ~ no repeats
+      benign_index = np.random.choice(benign.shape[0], 2, replace=False)
+      malignant_index = np.random.choice(malignant.shape[0], 2, replace=False)
+      A = benign[benign_index[0],:,:,:]
+      B = malignant[malignant_index[0],:,:,:]
+      C = benign[benign_index[1],:,:,:]
+      D = malignant[malignant_index[1],:,:,:]
       # different
       pairs = np.append(pairs, [np.array([A, B])], axis=0)
       pairs_y = np.append(pairs_y, 1) 
@@ -241,20 +247,36 @@ def form_pairs_auto(Nhalf):
       pairs_y = np.append(pairs_y, 0)
 
     pairs = np.swapaxes(pairs, 0, 1)
-    return pairs, pairs_y
+    return list(pairs), pairs_y
+
+    
+
+# forming pairs from validation
+validation_tuple = form_pairs_auto(int(np.ceil(validation_pair_count/4)),
+                  data_validation_benign, data_validation_malignant)
 
 # The model is ready to train!
-for k in range(1, 100):
-    batch_size_quarter = 5
-    pairs, pairs_y = form_pairs_auto(batch_size_quarter)
-    model.fit([pairs[0], pairs[1]], pairs_y, epochs = 10, batch_size=4*batch_size_quarter)
-    print("Batch {}, validation accuracy: {}".format(str(k), knn_accuracy(threshold = 20)))
+for N in range(1, epochs_all):
+    pairs, pairs_y = form_pairs_auto(int(np.ceil(train_pair_count/4)),
+                  data_benign, data_malignant)
+    print("Epoch #{}/{} ".format(str(N), epochs_all))
+    model.fit(pairs, pairs_y, epochs = 1, verbose=2, batch_size=batch_size
+                  , validation_data = validation_tuple)
+    #print("Batch {}, validation accuracy: {}".format(str(N), knn_accuracy(threshold = 1)))
     # лучше сделать подсчёт accuracy по ПАРАМ на валидационной выборке
     # knn_accuracy сделать на ТЕСТОВОЙ
 
 # saving model is easy
 #https://stackoverflow.com/questions/52553593/tensorflow-keras-model-save-raise-notimplementederror
+print('Saving model')
 model.save('./lung_cancer_siamese_conv3D.model')
 
 # loading model is also simple
 #new_model = tf.keras.models.load_model('lung_cancer_siamese_conv3D.model')
+
+# final testing
+print("Computing knn distance-weighted accuracy on validation set")
+for k in range(3, 8, 2):
+      for threshold in [0.5, 1, 2]:
+            accuracy = knn_accuracy(k, threshold)
+            print("accuracy(k={}, threshold={}) = {}".format(k, threshold, accuracy))
