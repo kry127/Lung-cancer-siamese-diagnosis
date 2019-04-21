@@ -8,12 +8,15 @@ import time
 time_start = time.time()
 
 # for argv parsing
-def getArgvKeyValye(key, default = None):
+def getArgvKeyValue(key, default = None):
     try:
         k = os.sys.argv.index(key)
         return os.sys.argv[k+1]
     except ValueError:
         return default
+    except IndexError:
+        return default
+
 
 def isArgvKeyPresented(key):
     try:
@@ -56,20 +59,20 @@ print("Img. beingn: {}, malignant: {}".format(
       len(benign_set), len(malignant_set)))
 
 # forming training and validation set
-train_count = int(getArgvKeyValye("-t", 100)) # should be 100
-validation_count = int(getArgvKeyValye("-v", 30)) # should be 50
-train_pair_count = int(getArgvKeyValye("-tp", 800)) # we take 1500 pairs every training step (75% training)
-validation_pair_count = int(getArgvKeyValye("-vp", 100)) # we take 500 pairs for validation (25% validation)
-batch_size = int(getArgvKeyValye("-bs", 100)) # how many pairs form loss function in every training step (2 recomended)
-epochs_all = int(getArgvKeyValye("-e", 300)) # global epochs (with pair change)
-steps_per_epoch = int(getArgvKeyValye("-s", 3)) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
+train_count = int(getArgvKeyValue("-t", 100)) # should be 100
+validation_count = int(getArgvKeyValue("-v", 30)) # should be 50
+train_pair_count = int(getArgvKeyValue("-tp", 800)) # we take 1500 pairs every training step (75% training)
+validation_pair_count = int(getArgvKeyValue("-vp", 100)) # we take 500 pairs for validation (25% validation)
+batch_size = int(getArgvKeyValue("-bs", 100)) # how many pairs form loss function in every training step (2 recomended)
+epochs_all = int(getArgvKeyValue("-e", 300)) # global epochs (with pair change)
+steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
 
-k = int(getArgvKeyValye("-k", 5)) # knn parameter -- pick 5 nearest neibourgs
-threshold = int(getArgvKeyValye("-th", 1)) # distance for both siamese accuracy and knn distance filter
-margin = int(getArgvKeyValye("-m", 3)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
+k = int(getArgvKeyValue("-k", 5)) # knn parameter -- pick 5 nearest neibourgs
+threshold = int(getArgvKeyValue("-th", 1)) # distance for both siamese accuracy and knn distance filter
+margin = int(getArgvKeyValue("-m", 3)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
 
-model_weights_load_file = getArgvKeyValye("-L") # can be none
-model_weights_save_file = getArgvKeyValye("-S", "./lung_cancer_siamese_conv3D.model") # with default value
+model_weights_load_file = getArgvKeyValue("-L") # can be none
+model_weights_save_file = getArgvKeyValue("-S", "./lung_cancer_siamese_conv3D.model") # with default value
 
 print("\n")
 print ("+-----+-------------------------+---------+")
@@ -272,7 +275,7 @@ def preload_weights():
                   if exists:
                         model = tf.keras.models.load_model(model_weights_load_file)
                         return
-      print("No weights file found specified at '-L' key!", file=os.sys.stderr)
+            print("No weights file found specified at '-L' key!", file=os.sys.stderr)
 
 preload_weights()
 
