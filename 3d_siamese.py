@@ -56,17 +56,17 @@ print("Img. beingn: {}, malignant: {}".format(
       len(benign_set), len(malignant_set)))
 
 # forming training and validation set
-train_count = getArgvKeyValye("-t", 100) # should be 100
-validation_count = getArgvKeyValye("-v", 30) # should be 50
-train_pair_count = getArgvKeyValye("-tp", 800) # we take 1500 pairs every training step (75% training)
-validation_pair_count = getArgvKeyValye("-vp", 100) # we take 500 pairs for validation (25% validation)
-batch_size = getArgvKeyValye("-bs", 100) # how many pairs form loss function in every training step (2 recomended)
-epochs_all = getArgvKeyValye("-e", 300) # global epochs (with pair change)
-steps_per_epoch = getArgvKeyValye("-s", 3) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
+train_count = int(getArgvKeyValye("-t", 100)) # should be 100
+validation_count = int(getArgvKeyValye("-v", 30)) # should be 50
+train_pair_count = int(getArgvKeyValye("-tp", 800)) # we take 1500 pairs every training step (75% training)
+validation_pair_count = int(getArgvKeyValye("-vp", 100)) # we take 500 pairs for validation (25% validation)
+batch_size = int(getArgvKeyValye("-bs", 100)) # how many pairs form loss function in every training step (2 recomended)
+epochs_all = int(getArgvKeyValye("-e", 300)) # global epochs (with pair change)
+steps_per_epoch = int(getArgvKeyValye("-s", 3)) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
 
-k = getArgvKeyValye("-k", 5) # knn parameter -- pick 5 nearest neibourgs
-threshold = getArgvKeyValye("-th", 1) # distance for both siamese accuracy and knn distance filter
-margin = getArgvKeyValye("-m", 3) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
+k = int(getArgvKeyValye("-k", 5)) # knn parameter -- pick 5 nearest neibourgs
+threshold = int(getArgvKeyValye("-th", 1)) # distance for both siamese accuracy and knn distance filter
+margin = int(getArgvKeyValye("-m", 3)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
 
 model_weights_load_file = getArgvKeyValye("-L") # can be none
 model_weights_save_file = getArgvKeyValye("-S", "./lung_cancer_siamese_conv3D.model") # with default value
@@ -91,7 +91,7 @@ print ("| -m  | margin                  | {0:<7} +".format(margin))
 print ("+-----+-------------------------+---------+")
 print ("|            Other parameters             +")
 print ("+-----+-------------------------+---------+")
-print ("| -L  | Model weights load file | {0:<7} +".format(model_weights_load_file))
+print ("| -L  | Model weights load file | {0:<7} +".format(str(model_weights_load_file)))
 print ("| -S  | Model weights save file | {0:<7} +".format(model_weights_save_file))
 print ("+-----+-------------------------+---------+")
 print("\n")
