@@ -41,13 +41,13 @@ print("Img. beingn: {}, malignant: {}".format(
       len(benign_set), len(malignant_set)))
 
 # forming training and validation set
-train_count = 60 # should be 100
-validation_count = 20 # should be 50
-train_pair_count = 400 # we take 1500 pairs every training step (75% training)
+train_count = 100 # should be 100
+validation_count = 30 # should be 50
+train_pair_count = 800 # we take 1500 pairs every training step (75% training)
 validation_pair_count = 100 # we take 500 pairs for validation (25% validation)
-batch_size = 2 # how many pairs form loss function in every training step (2 recomended)
-epochs_all = 1 # global epochs (with pair change)
-steps_per_epoch = 500 # how many steps per epoch available
+batch_size = 100 # how many pairs form loss function in every training step (2 recomended)
+epochs_all = 300 # global epochs (with pair change)
+steps_per_epoch = 1 # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
 
 print("Training batch size = {}".format(batch_size))
 
@@ -106,6 +106,8 @@ print("Validation data loaded at {} in {} sec.".format(t_end - time_start, t_end
 # Making siamese network for nodules comparison
 
 # More info about Keras Layers: https://keras.io/layers/core/, https://keras.io/layers/convolutional/
+# Good presentation of Mail.ru https://logic.pdmi.ras.ru/~sergey/teaching/dl2017/DLNikolenko-MailRu-05.pdf
+# ResNet: https://neurohive.io/ru/vidy-nejrosetej/resnet-34-50-101/
 
 # First of all, let's create two input layers.
 ct_img1 = tf.keras.layers.Input(shape=(16,64,64))
