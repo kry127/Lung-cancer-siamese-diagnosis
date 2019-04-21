@@ -167,25 +167,26 @@ ct_img2_r = tf.keras.layers.Reshape((16,64,64,1))(ct_img2)
 # building sequential type of model
 model = tf.keras.models.Sequential()
 
-# Let's create simple Conv2D layer, 28 batches, 10x10 kernels each
-model.add(tf.keras.layers.Conv3D(128, kernel_size=9,
+model.add(tf.keras.layers.Conv3D(64, kernel_size=7,
+            activation=tf.nn.relu, input_shape=(16,64,64,1))) # (10, 58, 58)
+model.add(tf.keras.layers.Conv3D(64, kernel_size=3,
             activation=tf.nn.relu, input_shape=(16,64,64,1))) # (8, 56, 56)
-# Then, let's add a subsampling layer (https://keras.io/layers/pooling/)
 model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (4, 28, 28)
 
-# add layer #2, assume 8 new features from each level 1 feature, filter 6x6
-model.add(tf.keras.layers.Conv3D(128, kernel_size=4, activation=tf.nn.relu)) # (1, 25, 25)
+model.add(tf.keras.layers.Conv3D(192, kernel_size=2, activation=tf.nn.relu)) # (2, 26, 26)
+model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (1, 13, 13)
 
-# Here, we can make 3x3 floating filters with max pool, (this converged to (N, 1, 1) dimension)
-model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 8, 8), activation=tf.nn.relu)) # (18, 18)
-model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (9, 9)
-model.add(tf.keras.layers.Conv3D(512, kernel_size=(1, 4, 4), activation=tf.nn.relu)) # (6, 6)
-model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (3, 3)
-model.add(tf.keras.layers.Conv3D(1024, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (1, 1)
+model.add(tf.keras.layers.Conv3D(384, kernel_size=(1, 2, 2), activation=tf.nn.relu)) # (12, 12)
+model.add(tf.keras.layers.Conv3D(384, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (10, 10)
+model.add(tf.keras.layers.Conv3D(768, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (8, 8)
+model.add(tf.keras.layers.Conv3D(1536, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (6, 6)
+model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (4, 4)
+model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (2, 2)
+model.add(tf.keras.layers.AvgPool3D(pool_size=(1, 2, 2))) # (9, 9)
 
 # Then, we should flatten last layer
 model.add(tf.keras.layers.Flatten())
-model.add(tf.keras.layers.Dense(1024, activation=tf.nn.sigmoid))
+model.add(tf.keras.layers.Dense(4096, activation=tf.nn.sigmoid))
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 

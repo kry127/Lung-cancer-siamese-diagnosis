@@ -2,8 +2,9 @@ https://neurohive.io/ru/vidy-nejrosetej/resnet-34-50-101/
 https://arxiv.org/pdf/1512.03385.pdf
 
 16 64 64 # 64 (65536)
-KERNEL SIZE 9
-8 56 56 #  64
+KERNEL SIZE 7
+10 58 58 #  64
+8  56 56 #  64
 MAX POOL
 4 28 28 # 64 (3136)
 2 26 26 # 192 (1352)
