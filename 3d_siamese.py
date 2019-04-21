@@ -62,7 +62,7 @@ train_pair_count = getArgvKeyValye("-tp", 800) # we take 1500 pairs every traini
 validation_pair_count = getArgvKeyValye("-vp", 100) # we take 500 pairs for validation (25% validation)
 batch_size = getArgvKeyValye("-bs", 100) # how many pairs form loss function in every training step (2 recomended)
 epochs_all = getArgvKeyValye("-e", 300) # global epochs (with pair change)
-steps_per_epoch = getArgvKeyValye("-s", 1) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
+steps_per_epoch = getArgvKeyValye("-s", 3) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
 
 k = getArgvKeyValye("-k", 5) # knn parameter -- pick 5 nearest neibourgs
 threshold = getArgvKeyValye("-th", 1) # distance for both siamese accuracy and knn distance filter
