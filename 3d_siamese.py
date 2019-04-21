@@ -182,7 +182,7 @@ model.add(tf.keras.layers.Conv3D(768, kernel_size=(1, 3, 3), activation=tf.nn.re
 model.add(tf.keras.layers.Conv3D(1536, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (6, 6)
 model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (4, 4)
 model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (2, 2)
-model.add(tf.keras.layers.AvgPool3D(pool_size=(1, 2, 2))) # (9, 9)
+model.add(tf.keras.layers.AvgPool3D(pool_size=(1, 2, 2))) # (1, 1)
 
 # Then, we should flatten last layer
 model.add(tf.keras.layers.Flatten())
