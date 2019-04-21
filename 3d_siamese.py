@@ -7,6 +7,21 @@ import time
 #starting time count
 time_start = time.time()
 
+# for argv parsing
+def getArgvKeyValye(key, default = None):
+    try:
+        k = os.sys.argv.index(key)
+        return os.sys.argv[k+1]
+    except ValueError:
+        return default
+
+def isArgvKeyPresented(key):
+    try:
+        os.sys.argv.index(key)
+        return True
+    except ValueError:
+        return False
+
 # Keras partial weight loading info:
 # https://stackoverflow.com/questions/43702323/how-to-load-only-specific-weights-on-keras
 
@@ -41,28 +56,47 @@ print("Img. beingn: {}, malignant: {}".format(
       len(benign_set), len(malignant_set)))
 
 # forming training and validation set
-train_count = 100 # should be 100
-validation_count = 30 # should be 50
-train_pair_count = 800 # we take 1500 pairs every training step (75% training)
-validation_pair_count = 100 # we take 500 pairs for validation (25% validation)
-batch_size = 100 # how many pairs form loss function in every training step (2 recomended)
-epochs_all = 300 # global epochs (with pair change)
-steps_per_epoch = 1 # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
+train_count = getArgvKeyValye("-t", 100) # should be 100
+validation_count = getArgvKeyValye("-v", 30) # should be 50
+train_pair_count = getArgvKeyValye("-tp", 800) # we take 1500 pairs every training step (75% training)
+validation_pair_count = getArgvKeyValye("-vp", 100) # we take 500 pairs for validation (25% validation)
+batch_size = getArgvKeyValye("-bs", 100) # how many pairs form loss function in every training step (2 recomended)
+epochs_all = getArgvKeyValye("-e", 300) # global epochs (with pair change)
+steps_per_epoch = getArgvKeyValye("-s", 1) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
+
+k = getArgvKeyValye("-k", 5) # knn parameter -- pick 5 nearest neibourgs
+threshold = getArgvKeyValye("-th", 1) # distance for both siamese accuracy and knn distance filter
+margin = getArgvKeyValye("-m", 3) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
+
+model_weights_load_file = getArgvKeyValye("-L") # can be none
+model_weights_save_file = getArgvKeyValye("-S", "./lung_cancer_siamese_conv3D.model") # with default value
 
 print("\n")
-print ("+---------------------------------+")
-print ("|     Tuning parameters table     +")
-print ("+-----------------------+---------+")
-print ("| Train count           | {0:<7} +".format(train_count))
-print ("| Validation count      | {0:<7} +".format(validation_count))
-print ("| Train pair count      | {0:<7} +".format(train_pair_count))
-print ("| Validation pair count | {0:<7} +".format(validation_pair_count))
-print ("| Batch size            | {0:<7} +".format(batch_size))
-print ("| Epochs all            | {0:<7} +".format(epochs_all))
-print ("| Steps per epoch       | {0:<7} +".format(steps_per_epoch))
-print ("+-----------------------+---------+")
+print ("+-----+-------------------------+---------+")
+print ("| Key | Parameter name          + Value   +")
+print ("+-----+-------------------------+---------+")
+print ("|         Tuning parameters table         +")
+print ("+-----+-------------------------+---------+")
+print ("| -t  | Train count             | {0:<7} +".format(train_count))
+print ("| -v  | Validation count        | {0:<7} +".format(validation_count))
+print ("| -tp | Train pair count        | {0:<7} +".format(train_pair_count))
+print ("| -vp | Validation pair count   | {0:<7} +".format(validation_pair_count))
+print ("| -bs | Batch size              | {0:<7} +".format(batch_size))
+print ("| -e  | Epochs all              | {0:<7} +".format(epochs_all))
+print ("| -s  | Steps per epoch         | {0:<7} +".format(steps_per_epoch))
+print ("+-----+-------------------------+---------+")
+print ("| -k  | k                       | {0:<7} +".format(k))
+print ("| -th | threshold               | {0:<7} +".format(threshold))
+print ("| -m  | margin                  | {0:<7} +".format(margin))
+print ("+-----+-------------------------+---------+")
+print ("|            Other parameters             +")
+print ("+-----+-------------------------+---------+")
+print ("| -L  | Model weights load file | {0:<7} +".format(model_weights_load_file))
+print ("| -S  | Model weights save file | {0:<7} +".format(model_weights_save_file))
+print ("+-----+-------------------------+---------+")
+print("\n")
 
-#halven the train count and validation count (for two classes)
+#halve the train count and validation count (for two classes)
 train_count = int(train_count/2)
 validation_count = int(validation_count/2)
 
@@ -78,7 +112,7 @@ validation_benign = benign_set[train_count:train_count+validation_count]
 # TODO make save and load method of the list of training data
 
 # print found classes
-print("train_beingn: {}, train_malignant: {}, validation_benign: {}, validation_malignant: {}".format(
+print("train_beingn: {}, train_malignant: {}, validation_benign: {}, validation_malignant: {}\n".format(
       len(train_benign), len(train_malignant), len(validation_malignant), len(validation_benign)))
 
 # load data 
@@ -102,17 +136,17 @@ def load_train_data(dataset_list, augment = None):
 
 
 time_start_load = time.time()
-print("Start loading data at {} sec.".format(time_start_load - time_start))
+print("Start loading data at {0:.3f} sec.".format(time_start_load - time_start))
 data_benign = load_train_data(train_benign, augment = True)
 data_malignant = load_train_data(train_malignant, augment = True)
 t_end = time.time()
-print("Training data loaded at {} sec. in {} sec.".format(t_end - time_start, t_end - time_start_load))
+print("Training data loaded at {0:.3f} sec. in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load))
 
 time_start_load = time.time()
 data_validation_benign = load_train_data(validation_benign)
 data_validation_malignant = load_train_data(validation_malignant)
 t_end = time.time()
-print("Validation data loaded at {} in {} sec.".format(t_end - time_start, t_end - time_start_load))
+print("Validation data loaded at {0:.3f} in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load))
 
 # Making siamese network for nodules comparison
 
@@ -138,10 +172,6 @@ model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (4, 28, 28)
 
 # add layer #2, assume 8 new features from each level 1 feature, filter 6x6
 model.add(tf.keras.layers.Conv3D(128, kernel_size=4, activation=tf.nn.relu)) # (1, 25, 25)
-
-# adding reshape for 3D-data conversion to 2D-data
-#model.add(tf.keras.layers.Reshape((25, 25, 1)))
-# for some reason it didn't work
 
 # Here, we can make 3x3 floating filters with max pool, (this converged to (N, 1, 1) dimension)
 model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 8, 8), activation=tf.nn.relu)) # (18, 18)
@@ -176,20 +206,18 @@ def contrastive_loss(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     '''
-    margin = 3 # margin defines how strong dissimilar values are pushed from each other
     square_pred = K.square(y_pred)
     margin_square = K.square(K.maximum(margin - y_pred, 0))
     return K.mean((1 - y_true) * square_pred + y_true * margin_square)
 
 # custom metrics
 def siamese_accuracy(y_true, y_pred):
-    threshold = 1
     #https://github.com/tensorflow/tensorflow/issues/23133
     '''Compute classification accuracy with a fixed threshold on distances.
     '''
     return K.mean(K.equal(y_true, K.cast(y_pred > threshold, y_true.dtype)))
 
-def knn_for_nodule(nodule, k = 5, threshold = 1):
+def knn_for_nodule(nodule, k, threshold):
     # ввести арбитраж на основе расстояния
     # например, на основе экспонентациальной функции (e^-x)
     rho_benign = model.predict([np.tile(nodule, (len(data_benign), 1, 1, 1)), data_benign])
@@ -235,7 +263,21 @@ model.compile(
     metrics=['accuracy', siamese_accuracy]
 )
 
-def knn_accuracy(k = 5, threshold = 1):
+# check if user wants to preload existing weights
+def preload_weights():
+      global model
+      if (isArgvKeyPresented("-L")):
+            if (model_weights_load_file != None):
+                  exists = os.path.isfile(model_weights_load_file)
+                  if exists:
+                        model = tf.keras.models.load_model(model_weights_load_file)
+                        return
+      print("No weights file found specified at '-L' key!", file=os.sys.stderr)
+
+preload_weights()
+
+
+def knn_accuracy(k, threshold):
       N = 0
       t = 0
       for benign_nodule in data_validation_benign:
@@ -281,39 +323,40 @@ def form_pairs_auto(Nhalf, benign, malignant):
 
 # forming pairs from validation
 time_start_load = time.time()
-print("Start forming validation tuples at {} seconds".format(time_start_load - time_start))
+print("Start forming validation tuples at {0:.3f} seconds".format(time_start_load - time_start))
 validation_tuple = form_pairs_auto(int(np.ceil(validation_pair_count/4)),
                   data_validation_benign, data_validation_malignant)
 t_end = time.time()
-print("Validation tuples formed at {} in {} sec.".format(t_end - time_start, t_end - time_start_load))
+print("Validation tuples formed at {0:.3f} in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load))
+print()
 
 # The model is ready to train!
 for N in range(1, epochs_all+1):
+    form_pairs_start_time = time.time()
     pairs, pairs_y = form_pairs_auto(int(np.ceil(train_pair_count/4)),
                   data_benign, data_malignant)
+    print("Pairs formation: {0:.3f} seconds".format(time.time() - form_pairs_start_time))
     print("Epoch #{}/{} ".format(str(N), epochs_all))
     model.fit(pairs, pairs_y, epochs = steps_per_epoch, verbose=2, batch_size=batch_size
                   , validation_data = validation_tuple)
-    #print("Batch {}, validation accuracy: {}".format(str(N), knn_accuracy(threshold = 1)))
+    #print("Batch {}, validation accuracy: {}".format(str(N), knn_accuracy(threshold)))
     # лучше сделать подсчёт accuracy по ПАРАМ на валидационной выборке
     # knn_accuracy сделать на ТЕСТОВОЙ
 
 # saving model is easy
 #https://stackoverflow.com/questions/52553593/tensorflow-keras-model-save-raise-notimplementederror
-print('Saving model')
-model.save('./lung_cancer_siamese_conv3D.model')
+def save_weights():
+      global model
+      exists = os.path.isfile(model_weights_save_file)
+      if exists:
+            print('Saving model')
+            model.save(model_weights_save_file)
+            return
+      print("Can't save the model at path {}".format(model_weights_save_file),  file=os.sys.stderr)
 
-# loading model is also simple
-#new_model = tf.keras.models.load_model('lung_cancer_siamese_conv3D.model')
+save_weights()
 
 # final testing
 print("Computing knn distance-weighted accuracy on validation set")
-k = 5
-threshold = 1
-#accuracy = knn_accuracy(k, threshold)
-#print("accuracy(k={}, threshold={}) = {}".format(k, threshold, accuracy))
-
-for k in range(5, 12, 2):
-#      for threshold in [0.5, 1, 2]:
-            accuracy = knn_accuracy(k, threshold)
-            print("accuracy(k={}, threshold={}) = {}".format(k, threshold, accuracy))
+accuracy = knn_accuracy(k, threshold)
+print("accuracy(k={}, threshold={}) = {}".format(k, threshold, accuracy))
