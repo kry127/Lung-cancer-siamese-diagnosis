@@ -3,7 +3,6 @@ all2/
 cancer/
 *.png
 *.rar
-*.slurm
 *.model
 *.out
 *.err
