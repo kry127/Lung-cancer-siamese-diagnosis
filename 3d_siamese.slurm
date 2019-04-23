@@ -22,10 +22,10 @@ srun python3 3d_siamese.py \
 -vp 100     \
 -bs 50     \
 -e  70     \
--s  5       \
+-s  3       \
 -k  7       \
 -th 1       \
--m  5       \
+-m  3       \
 -S ./big_k_model.model
 
 
