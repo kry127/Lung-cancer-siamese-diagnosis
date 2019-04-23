@@ -16,17 +16,17 @@ module purge
 source ~/activation
 
 srun python3 3d_siamese.py \
--t  70      \
+-t  400      \
 -v  30      \
 -tp 400     \
 -vp 100     \
--bs 100     \
+-bs 50     \
 -e  70     \
--s  3       \
+-s  5       \
 -k  7       \
 -th 1       \
--m  3       \
--S ./big_learn_set.model
+-m  5       \
+-S ./big_k_model.model
 
 
 

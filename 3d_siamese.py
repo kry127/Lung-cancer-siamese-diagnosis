@@ -165,35 +165,45 @@ ct_img1_r = tf.keras.layers.Reshape((16,64,64,1))(ct_img1)
 ct_img2_r = tf.keras.layers.Reshape((16,64,64,1))(ct_img2)
 
 # building sequential type of model
-model = tf.keras.models.Sequential()
+inner_model = tf.keras.models.Sequential()
 
-model.add(tf.keras.layers.Conv3D(64, kernel_size=5,
+inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=5,
             activation=tf.nn.relu, input_shape=(16,64,64,1))) # (12, 60, 60)
-model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (6, 30, 30)
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (6, 30, 30)
 
-model.add(tf.keras.layers.Conv3D(64, kernel_size=3,
+inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=3,
             activation=tf.nn.relu, input_shape=(16,64,64,1))) # (4, 28, 28)
-model.add(tf.keras.layers.Conv3D(192, kernel_size=3, activation=tf.nn.relu)) # (2, 26, 26)
-model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (1, 13, 13)
+inner_model.add(tf.keras.layers.Dropout(0.2))
+inner_model.add(tf.keras.layers.Conv3D(192, kernel_size=3, activation=tf.nn.relu)) # (2, 26, 26)
+inner_model.add(tf.keras.layers.Dropout(0.2))
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (1, 13, 13)
 
-model.add(tf.keras.layers.Conv3D(384, kernel_size=(1, 2, 2), activation=tf.nn.relu)) # (12, 12)
-model.add(tf.keras.layers.Conv3D(384, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (10, 10)
-model.add(tf.keras.layers.Conv3D(768, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (8, 8)
-model.add(tf.keras.layers.Conv3D(1536, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (6, 6)
-model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (4, 4)
-model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (2, 2)
-model.add(tf.keras.layers.AvgPool3D(pool_size=(1, 2, 2))) # (1, 1)
+inner_model.add(tf.keras.layers.Conv3D(384, kernel_size=(1, 2, 2), activation=tf.nn.relu)) # (12, 12)
+inner_model.add(tf.keras.layers.Dropout(0.2))
+inner_model.add(tf.keras.layers.Conv3D(384, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (10, 10)
+inner_model.add(tf.keras.layers.Dropout(0.2))
+inner_model.add(tf.keras.layers.Conv3D(768, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (8, 8)
+inner_model.add(tf.keras.layers.Dropout(0.2))
+inner_model.add(tf.keras.layers.Conv3D(1536, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (6, 6)
+inner_model.add(tf.keras.layers.Dropout(0.2))
+inner_model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (4, 4)
+inner_model.add(tf.keras.layers.Dropout(0.2))
+inner_model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (2, 2)
+inner_model.add(tf.keras.layers.Dropout(0.2))
+inner_model.add(tf.keras.layers.AvgPool3D(pool_size=(1, 2, 2))) # (1, 1)
 
 # Then, we should flatten last layer
-model.add(tf.keras.layers.Flatten())
-model.add(tf.keras.layers.Dense(2048, activation=tf.nn.relu))
-model.add(tf.keras.layers.Dense(2048, activation=tf.nn.relu))
-model.add(tf.keras.layers.Dense(2048, activation=tf.nn.sigmoid))
+# Avoid OOM!
+# https://stackoverflow.com/questions/53658501/out-of-memory-oom-error-of-tensorflow-keras-model
+inner_model.add(tf.keras.layers.Flatten())
+inner_model.add(tf.keras.layers.Dense(2048, activation=tf.nn.relu))
+inner_model.add(tf.keras.layers.Dense(2048, activation=tf.nn.relu))
+inner_model.add(tf.keras.layers.Dense(2048, activation=tf.nn.sigmoid))
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 
-ct_img_model1 = model(ct_img1_r)
-ct_img_model2 = model(ct_img2_r)
+ct_img_model1 = inner_model(ct_img1_r)
+ct_img_model2 = inner_model(ct_img2_r)
 
 def lambda_layer(tensors):
     # https://github.com/tensorflow/tensorflow/issues/12071
@@ -266,7 +276,7 @@ optimizer = tf.keras.optimizers.Adam(lr = 0.000006)
 model.compile(
     optimizer=optimizer,
     loss=contrastive_loss,
-    metrics=['accuracy', siamese_accuracy]
+    metrics=[siamese_accuracy]
 )
 
 # check if user wants to preload existing weights
@@ -355,10 +365,12 @@ def save_weights():
       global model
       exists = os.path.isfile(model_weights_save_file)
       if exists:
+            print('Overwriting model')
+      else:
             print('Saving model')
-            model.save(model_weights_save_file)
-            return
-      print("Can't save the model at path {}".format(model_weights_save_file),  file=os.sys.stderr)
+
+      model.save(model_weights_save_file)
+      return
 
 save_weights()
 
