@@ -26,7 +26,7 @@ srun python3 3d_siamese.py \
 -k  7       \
 -th 0.5     \
 -m  3       \
--S ./dropout-0.1 th-0.5.model
+-S "./VGG dropout-0.1 th-0.5.model"
 
 
 

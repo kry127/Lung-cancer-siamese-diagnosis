@@ -68,8 +68,8 @@ epochs_all = int(getArgvKeyValue("-e", 300)) # global epochs (with pair change)
 steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
 
 k = int(getArgvKeyValue("-k", 5)) # knn parameter -- pick 5 nearest neibourgs
-threshold = int(getArgvKeyValue("-th", 1)) # distance for both siamese accuracy and knn distance filter
-margin = int(getArgvKeyValue("-m", 3)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
+threshold = float(getArgvKeyValue("-th", 1)) # distance for both siamese accuracy and knn distance filter
+margin = float(getArgvKeyValue("-m", 3)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
 
 model_weights_load_file = getArgvKeyValue("-L") # can be none
 model_weights_save_file = getArgvKeyValue("-S", "./lung_cancer_siamese_conv3D.model") # with default value
@@ -78,24 +78,24 @@ print("\n")
 print ("+-----+-------------------------+---------+")
 print ("| Key | Parameter name          + Value   +")
 print ("+-----+-------------------------+---------+")
-print ("|         Tuning parameters table         +")
+print ("|         Tuning parameters table         |")
 print ("+-----+-------------------------+---------+")
-print ("| -t  | Train count             | {0:<7} +".format(train_count))
-print ("| -v  | Validation count        | {0:<7} +".format(validation_count))
-print ("| -tp | Train pair count        | {0:<7} +".format(train_pair_count))
-print ("| -vp | Validation pair count   | {0:<7} +".format(validation_pair_count))
-print ("| -bs | Batch size              | {0:<7} +".format(batch_size))
-print ("| -e  | Epochs all              | {0:<7} +".format(epochs_all))
-print ("| -s  | Steps per epoch         | {0:<7} +".format(steps_per_epoch))
+print ("| -t  | Train count             | {0:<7} |".format(train_count))
+print ("| -v  | Validation count        | {0:<7} |".format(validation_count))
+print ("| -tp | Train pair count        | {0:<7} |".format(train_pair_count))
+print ("| -vp | Validation pair count   | {0:<7} |".format(validation_pair_count))
+print ("| -bs | Batch size              | {0:<7} |".format(batch_size))
+print ("| -e  | Epochs all              | {0:<7} |".format(epochs_all))
+print ("| -s  | Steps per epoch         | {0:<7} |".format(steps_per_epoch))
 print ("+-----+-------------------------+---------+")
-print ("| -k  | k                       | {0:<7} +".format(k))
-print ("| -th | threshold               | {0:<7} +".format(threshold))
-print ("| -m  | margin                  | {0:<7} +".format(margin))
+print ("| -k  | k                       | {0:<7} |".format(k))
+print ("| -th | threshold               | {0:<7} |".format(threshold))
+print ("| -m  | margin                  | {0:<7} |".format(margin))
 print ("+-----+-------------------------+---------+")
-print ("|            Other parameters             +")
+print ("|            Other parameters             |")
 print ("+-----+-------------------------+---------+")
-print ("| -L  | Model weights load file | {0:<7} +".format(str(model_weights_load_file)))
-print ("| -S  | Model weights save file | {0:<7} +".format(model_weights_save_file))
+print ("| -L  | Model weights load file | {0:<7} |".format(str(model_weights_load_file)))
+print ("| -S  | Model weights save file | {0:<7} |".format(model_weights_save_file))
 print ("+-----+-------------------------+---------+")
 print("\n")
 
@@ -169,6 +169,8 @@ inner_model = tf.keras.models.Sequential()
 
 # trying VGG-like model
 # https://www.quora.com/What-is-the-VGG-neural-network
+# here another types:
+# https://medium.com/@sidereal/cnns-architectures-lenet-alexnet-vgg-googlenet-resnet-and-more-666091488df5
 inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=3,
             activation=tf.nn.relu, input_shape=(16,64,64,1))) # (14, 62, 62)
 inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=3,
@@ -181,7 +183,7 @@ inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=3,
             activation=tf.nn.relu, input_shape=(16,64,64,1))) # (3, 27, 27)
 inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=3, activation=tf.nn.relu)) # (1, 25, 25)
 inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=(1, 2, 2), activation=tf.nn.relu)) # (1, 24, 24)
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (1, 12, 12)
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 12, 12)
 
 inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (10, 10)
 inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (8, 8)
