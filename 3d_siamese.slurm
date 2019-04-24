@@ -21,12 +21,12 @@ srun python3 3d_siamese.py \
 -tp 400     \
 -vp 100     \
 -bs 50     \
--e  70     \
+-e  30     \
 -s  3       \
 -k  7       \
 -th 1       \
 -m  3       \
--S ./big_k_model.model
+-S ./dropout-0.1.model
 
 
 
