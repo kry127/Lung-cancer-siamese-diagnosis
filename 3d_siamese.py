@@ -167,32 +167,39 @@ ct_img2_r = tf.keras.layers.Reshape((16,64,64,1))(ct_img2)
 # building sequential type of model
 inner_model = tf.keras.models.Sequential()
 
-inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=5,
-            activation=tf.nn.relu, input_shape=(16,64,64,1))) # (12, 60, 60)
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (6, 30, 30)
+# trying VGG-like model
+# https://www.quora.com/What-is-the-VGG-neural-network
+inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=3,
+            activation=tf.nn.relu, input_shape=(16,64,64,1))) # (14, 62, 62)
+inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=3,
+            activation=tf.nn.relu)) # (12, 60, 60)
+inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=3,
+            activation=tf.nn.relu)) # (10, 58, 58)
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (5, 29, 29)
 
 inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=3,
-            activation=tf.nn.relu, input_shape=(16,64,64,1))) # (4, 28, 28)
-inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=3, activation=tf.nn.relu)) # (2, 26, 26)
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (1, 13, 13)
+            activation=tf.nn.relu, input_shape=(16,64,64,1))) # (3, 27, 27)
+inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=3, activation=tf.nn.relu)) # (1, 25, 25)
+inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=(1, 2, 2), activation=tf.nn.relu)) # (1, 24, 24)
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (1, 12, 12)
 
-inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 2, 2), activation=tf.nn.relu)) # (12, 12)
 inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (10, 10)
-inner_model.add(tf.keras.layers.Conv3D(512, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (8, 8)
-inner_model.add(tf.keras.layers.Conv3D(512, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (6, 6)
+inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (8, 8)
+inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (6, 6)
 inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.Conv3D(1024, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (4, 4)
-inner_model.add(tf.keras.layers.Conv3D(1024, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (2, 2)
+
+inner_model.add(tf.keras.layers.Conv3D(512, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (4, 4)
+inner_model.add(tf.keras.layers.Conv3D(512, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (2, 2)
 inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.AvgPool3D(pool_size=(1, 2, 2))) # (1, 1)
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1)
 
 # Then, we should flatten last layer
 # Avoid OOM!
 # https://stackoverflow.com/questions/53658501/out-of-memory-oom-error-of-tensorflow-keras-model
 inner_model.add(tf.keras.layers.Flatten())
-inner_model.add(tf.keras.layers.Dense(1024, activation=tf.nn.relu))
-inner_model.add(tf.keras.layers.Dense(2048, activation=tf.nn.relu))
-inner_model.add(tf.keras.layers.Dense(2048, activation=tf.nn.sigmoid))
+inner_model.add(tf.keras.layers.Dense(4096, activation=tf.nn.relu))
+inner_model.add(tf.keras.layers.Dense(4096, activation=tf.nn.relu))
+inner_model.add(tf.keras.layers.Dense(4096, activation=tf.nn.softmax))
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 
@@ -359,9 +366,9 @@ def save_weights():
       global model
       exists = os.path.isfile(model_weights_save_file)
       if exists:
-            print('Overwriting model')
+            print('Overwriting model {}'.format(model_weights_save_file))
       else:
-            print('Saving model')
+            print('Saving model {}'.format(model_weights_save_file))
 
       model.save(model_weights_save_file)
       return

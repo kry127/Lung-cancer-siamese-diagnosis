@@ -16,17 +16,17 @@ module purge
 source ~/activation
 
 srun python3 3d_siamese.py \
--t  400      \
+-t  300      \
 -v  30      \
 -tp 400     \
 -vp 100     \
--bs 50     \
--e  30     \
--s  3       \
+-bs 50      \
+-e  30      \
+-s  5       \
 -k  7       \
--th 1       \
+-th 0.5     \
 -m  3       \
--S ./dropout-0.1.model
+-S ./dropout-0.1 th-0.5.model
 
 
 
