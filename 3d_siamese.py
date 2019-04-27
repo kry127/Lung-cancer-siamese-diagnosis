@@ -177,6 +177,7 @@ inner_model = tf.keras.models.Sequential()
 # Try big sizes of kernel : 11-16
 inner_model.add(tf.keras.layers.Conv3D(512, kernel_size=12,
             activation=tf.nn.relu, strides=4, input_shape=(16,64,64,1))) # (2, 14, 14)
+# do we actually need these strides?
 inner_model.add(tf.keras.layers.Dropout(0.1))
 inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 7, 7)
 
