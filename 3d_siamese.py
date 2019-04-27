@@ -175,17 +175,33 @@ inner_model = tf.keras.models.Sequential()
 # here another types:
 # https://medium.com/@sidereal/cnns-architectures-lenet-alexnet-vgg-googlenet-resnet-and-more-666091488df5
 # Try big sizes of kernel : 11-16
-inner_model.add(tf.keras.layers.Conv3D(512, kernel_size=12,
-            activation=tf.nn.relu, strides=4, input_shape=(16,64,64,1))) # (2, 14, 14)
+inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=13,
+            activation=tf.nn.relu, strides=1, input_shape=(16,64,64,1))) # (4, 52, 52)
 # do we actually need these strides?
 inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 7, 7)
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(2, 2, 2))) # (2, 26, 26)
 
 
-inner_model.add(tf.keras.layers.Conv3D(1024, kernel_size=(1, 4, 4),
-            activation=tf.nn.relu)) # (1, 4, 4)
+inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=(2, 2, 2),
+            strides=1, activation=tf.nn.relu)) # (1, 25, 25)
 inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 2, 2)
+# HERE 24 by 24 is like 28 by 28 in MNIST
+
+# times 4
+inner_model.add(tf.keras.layers.Conv3D(512, kernel_size=(1, 4, 4),
+            strides=1, activation=tf.nn.relu)) # (1, 22, 22)
+inner_model.add(tf.keras.layers.Dropout(0.1))
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 11, 11)
+
+# times 3
+inner_model.add(tf.keras.layers.Conv3D(1536, kernel_size=(1, 4, 4),
+            strides=1, activation=tf.nn.relu)) # (1, 8, 8)
+inner_model.add(tf.keras.layers.Dropout(0.1))
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 4, 4)
+
+# times 2
+inner_model.add(tf.keras.layers.Conv3D(3072, kernel_size=(1, 4, 4),
+            strides=1, activation=tf.nn.relu)) # (1, 1, 1)
 
 # Then, we should flatten last layer
 # Avoid OOM!
