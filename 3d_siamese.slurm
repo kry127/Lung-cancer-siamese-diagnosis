@@ -16,17 +16,18 @@ module purge
 source ~/activation
 
 srun python3 3d_siamese.py \
--t  300      \
--v  30      \
--tp 400     \
--vp 100     \
--bs 50      \
--e  30      \
--s  5       \
--k  7       \
--th 0.5     \
--m  3       \
--S "./VGG dropout-0.1 th-0.5.model"
+-t  100      \
+-v  30       \
+-tp 400      \
+-vp 100      \
+-bs 128       \
+-e  100       \
+-s  1        \
+-lr 0.000006 \
+-k  7        \
+-th 1.0      \
+-m  3        \
+-S "./bigkernel dropout-0.1 th-1.0.model"
 
 
 

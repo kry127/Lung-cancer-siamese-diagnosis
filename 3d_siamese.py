@@ -66,6 +66,7 @@ validation_pair_count = int(getArgvKeyValue("-vp", 100)) # we take 500 pairs for
 batch_size = int(getArgvKeyValue("-bs", 100)) # how many pairs form loss function in every training step (2 recomended)
 epochs_all = int(getArgvKeyValue("-e", 300)) # global epochs (with pair change)
 steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
+learning_rate = float(getArgvKeyValue("-lr",0.000006))
 
 k = int(getArgvKeyValue("-k", 5)) # knn parameter -- pick 5 nearest neibourgs
 threshold = float(getArgvKeyValue("-th", 1)) # distance for both siamese accuracy and knn distance filter
@@ -76,7 +77,7 @@ model_weights_save_file = getArgvKeyValue("-S", "./lung_cancer_siamese_conv3D.mo
 
 print("\n")
 print ("+-----+-------------------------+---------+")
-print ("| Key | Parameter name          + Value   +")
+print ("| Key | Parameter name          | Value   |")
 print ("+-----+-------------------------+---------+")
 print ("|         Tuning parameters table         |")
 print ("+-----+-------------------------+---------+")
@@ -87,6 +88,7 @@ print ("| -vp | Validation pair count   | {0:<7} |".format(validation_pair_count
 print ("| -bs | Batch size              | {0:<7} |".format(batch_size))
 print ("| -e  | Epochs all              | {0:<7} |".format(epochs_all))
 print ("| -s  | Steps per epoch         | {0:<7} |".format(steps_per_epoch))
+print ("| -lr | Learing rate            | {0:<7} |".format(learning_rate))
 print ("+-----+-------------------------+---------+")
 print ("| -k  | k                       | {0:<7} |".format(k))
 print ("| -th | threshold               | {0:<7} |".format(threshold))
@@ -169,29 +171,26 @@ inner_model = tf.keras.models.Sequential()
 
 # trying VGG-like model
 # https://www.quora.com/What-is-the-VGG-neural-network
+# VGG is bad :(
 # here another types:
 # https://medium.com/@sidereal/cnns-architectures-lenet-alexnet-vgg-googlenet-resnet-and-more-666091488df5
-inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=3,
-            activation=tf.nn.relu, input_shape=(16,64,64,1))) # (14, 62, 62)
-inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=3,
-            activation=tf.nn.relu)) # (12, 60, 60)
-inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=3,
-            activation=tf.nn.relu)) # (10, 58, 58)
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=2)) # (5, 29, 29)
-
-inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=3,
-            activation=tf.nn.relu, input_shape=(16,64,64,1))) # (3, 27, 27)
-inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=3, activation=tf.nn.relu)) # (1, 25, 25)
-inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=(1, 2, 2), activation=tf.nn.relu)) # (1, 24, 24)
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 12, 12)
-
-inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (10, 10)
-inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (8, 8)
-inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (6, 6)
+# Try big sizes of kernel : 11-16
+inner_model.add(tf.keras.layers.Conv3D(768, kernel_size=16,
+            activation=tf.nn.relu, strides=(1, 4, 4), input_shape=(16,64,64,1))) # (1, 13, 13)
+# maybe try kernel_size = 12 & strides = 4 (2, 14, 14) + max pooling (1, 7, 7)?
 inner_model.add(tf.keras.layers.Dropout(0.1))
 
-inner_model.add(tf.keras.layers.Conv3D(512, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (4, 4)
-inner_model.add(tf.keras.layers.Conv3D(512, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (2, 2)
+
+inner_model.add(tf.keras.layers.Conv3D(1024, kernel_size=(1, 6, 6),
+            activation=tf.nn.relu)) # (1, 8, 8)
+inner_model.add(tf.keras.layers.Dropout(0.1))
+#inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 4, 4)
+
+inner_model.add(tf.keras.layers.Conv3D(1536, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (6, 6)
+inner_model.add(tf.keras.layers.Dropout(0.1))
+inner_model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (4, 4)
+inner_model.add(tf.keras.layers.Dropout(0.1))
+inner_model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (2, 2)
 inner_model.add(tf.keras.layers.Dropout(0.1))
 inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1)
 
@@ -199,9 +198,11 @@ inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1)
 # Avoid OOM!
 # https://stackoverflow.com/questions/53658501/out-of-memory-oom-error-of-tensorflow-keras-model
 inner_model.add(tf.keras.layers.Flatten())
-inner_model.add(tf.keras.layers.Dense(4096, activation=tf.nn.relu))
-inner_model.add(tf.keras.layers.Dense(4096, activation=tf.nn.relu))
-inner_model.add(tf.keras.layers.Dense(4096, activation=tf.nn.softmax))
+inner_model.add(tf.keras.layers.Dense(1024, activation=tf.nn.relu))
+inner_model.add(tf.keras.layers.Dropout(0.1))
+inner_model.add(tf.keras.layers.Dense(512, activation=tf.nn.relu))
+inner_model.add(tf.keras.layers.Dropout(0.1))
+inner_model.add(tf.keras.layers.Dense(256, activation=tf.nn.sigmoid))
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 
@@ -274,7 +275,7 @@ def knn_for_nodule(nodule, k, threshold):
 
     
 #https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
-optimizer = tf.keras.optimizers.Adam(lr = 0.000006)
+optimizer = tf.keras.optimizers.Adam(lr = learning_rate)
 #optimizer = tf.keras.optimizers.SGD(lr=0.0005, momentum=0.3)
 model.compile(
     optimizer=optimizer,
@@ -338,12 +339,43 @@ def form_pairs_auto(Nhalf, benign, malignant):
     pairs = np.swapaxes(pairs, 0, 1)
     return list(pairs), pairs_y
 
+def form_pairs_auto_no_same_benign(Nhalf, benign, malignant):
+    pairs = np.ndarray((0,2,16,64,64))
+    pairs_y = np.ndarray((0, 1))
+    for i in range (0, Nhalf):
+      # replace = False ~ no repeats
+      benign_index = np.random.choice(benign.shape[0], 3, replace=False)
+      malignant_index = np.random.choice(malignant.shape[0], 3, replace=False)
+      b1 = benign[benign_index[0],:,:,:]
+      b2 = benign[benign_index[1],:,:,:]
+      b3 = benign[benign_index[2],:,:,:]
+      m1 = malignant[malignant_index[0],:,:,:]
+      m2 = malignant[malignant_index[1],:,:,:]
+      m3 = malignant[malignant_index[2],:,:,:]
+
+      # different
+      pairs = np.append(pairs, [np.array([b1, m1])], axis=0)
+      pairs_y = np.append(pairs_y, 1) 
+      pairs = np.append(pairs, [np.array([b2, m2])], axis=0)
+      pairs_y = np.append(pairs_y, 1) 
+      pairs = np.append(pairs, [np.array([b3, m3])], axis=0)
+      pairs_y = np.append(pairs_y, 1) 
+      # same
+      pairs = np.append(pairs, [np.array([b1, b2])], axis=0)
+      pairs_y = np.append(pairs_y, 0)
+      pairs = np.append(pairs, [np.array([b1, b3])], axis=0)
+      pairs_y = np.append(pairs_y, 0)
+      pairs = np.append(pairs, [np.array([b2, b3])], axis=0)
+      pairs_y = np.append(pairs_y, 0)
+
+    pairs = np.swapaxes(pairs, 0, 1)
+    return list(pairs), pairs_y
     
 
 # forming pairs from validation
 time_start_load = time.time()
 print("Start forming validation tuples at {0:.3f} seconds".format(time_start_load - time_start))
-validation_tuple = form_pairs_auto(int(np.ceil(validation_pair_count/4)),
+validation_tuple = form_pairs_auto_no_same_benign(int(np.ceil(validation_pair_count/4)),
                   data_validation_benign, data_validation_malignant)
 t_end = time.time()
 print("Validation tuples formed at {0:.3f} in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load))
@@ -352,7 +384,7 @@ print()
 # The model is ready to train!
 for N in range(1, epochs_all+1):
     form_pairs_start_time = time.time()
-    pairs, pairs_y = form_pairs_auto(int(np.ceil(train_pair_count/4)),
+    pairs, pairs_y = form_pairs_auto_no_same_benign(int(np.ceil(train_pair_count/4)),
                   data_benign, data_malignant)
     print("Pairs formation: {0:.3f} seconds".format(time.time() - form_pairs_start_time))
     print("Epoch #{}/{} ".format(str(N), epochs_all))
