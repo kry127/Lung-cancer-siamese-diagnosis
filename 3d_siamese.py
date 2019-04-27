@@ -175,32 +175,24 @@ inner_model = tf.keras.models.Sequential()
 # here another types:
 # https://medium.com/@sidereal/cnns-architectures-lenet-alexnet-vgg-googlenet-resnet-and-more-666091488df5
 # Try big sizes of kernel : 11-16
-inner_model.add(tf.keras.layers.Conv3D(768, kernel_size=16,
-            activation=tf.nn.relu, strides=(1, 4, 4), input_shape=(16,64,64,1))) # (1, 13, 13)
-# maybe try kernel_size = 12 & strides = 4 (2, 14, 14) + max pooling (1, 7, 7)?
+inner_model.add(tf.keras.layers.Conv3D(512, kernel_size=12,
+            activation=tf.nn.relu, strides=4, input_shape=(16,64,64,1))) # (2, 14, 14)
 inner_model.add(tf.keras.layers.Dropout(0.1))
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 7, 7)
 
 
-inner_model.add(tf.keras.layers.Conv3D(1024, kernel_size=(1, 6, 6),
-            activation=tf.nn.relu)) # (1, 8, 8)
+inner_model.add(tf.keras.layers.Conv3D(1024, kernel_size=(1, 4, 4),
+            activation=tf.nn.relu)) # (1, 4, 4)
 inner_model.add(tf.keras.layers.Dropout(0.1))
-#inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 4, 4)
-
-inner_model.add(tf.keras.layers.Conv3D(1536, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (6, 6)
-inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (4, 4)
-inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.Conv3D(2048, kernel_size=(1, 3, 3), activation=tf.nn.relu)) # (2, 2)
-inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1)
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 2, 2)
 
 # Then, we should flatten last layer
 # Avoid OOM!
 # https://stackoverflow.com/questions/53658501/out-of-memory-oom-error-of-tensorflow-keras-model
 inner_model.add(tf.keras.layers.Flatten())
-inner_model.add(tf.keras.layers.Dense(1024, activation=tf.nn.relu))
+inner_model.add(tf.keras.layers.Dense(4096, activation=tf.nn.relu))
 inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.Dense(512, activation=tf.nn.relu))
+inner_model.add(tf.keras.layers.Dense(1024, activation=tf.nn.relu))
 inner_model.add(tf.keras.layers.Dropout(0.1))
 inner_model.add(tf.keras.layers.Dense(256, activation=tf.nn.sigmoid))
 

@@ -27,7 +27,7 @@ srun python3 3d_siamese.py \
 -k  7        \
 -th 1.0      \
 -m  3        \
--S "./bigkernel dropout-0.1 th-1.0.model"
+-S "./kernel=12 dropout-0.1 th-1.0 sigm no_benign_similar.model"
 
 
 
