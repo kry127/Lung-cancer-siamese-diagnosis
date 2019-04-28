@@ -3,64 +3,35 @@ from keras import backend as K
 import os
 import numpy as np
 import time
+import utility
+from utility import getArgvKeyValue
+from utility import isArgvKeyPresented
 
 #starting time count
 time_start = time.time()
 
-# for argv parsing
-def getArgvKeyValue(key, default = None):
-    try:
-        k = os.sys.argv.index(key)
-        return os.sys.argv[k+1]
-    except ValueError:
-        return default
-    except IndexError:
-        return default
+ct_folder = utility.ct_folder # folder with all computer tomography images
+cancer_folder = utility.cancer_folder # folder with cancerous tomography images
 
+def print_help():
+      pass
 
-def isArgvKeyPresented(key):
-    try:
-        os.sys.argv.index(key)
-        return True
-    except ValueError:
-        return False
+def check_folder(folder):
+  if (folder is None):
+    print("Folder -F is not specified!")
+    #print_help()
+    exit(1)
 
-# Keras partial weight loading info:
-# https://stackoverflow.com/questions/43702323/how-to-load-only-specific-weights-on-keras
+  # check folder exists
+  isdir = os.path.isdir(folder)
+  if not isdir:
+    print("Folder -F is not exist!")
+    #print_help()
+    exit(1)
 
-ct_folder = 'all2' # folder with all computer tomography images
-cancer_folder = 'cancer' # folder with cancerous tomography images
-
-# https://luna16.grand-challenge.org/Data/
-ct_dataset = os.listdir(ct_folder)
-cancer_dataset = os.listdir(cancer_folder)
-
-ct_set = np.array(ct_dataset) # get set of all ct images and their masks
-malignant_set = np.array(cancer_dataset) # get ct images containing cancer (call it malignant)
-benign_set = np.setxor1d(ct_set, malignant_set) # make list of benign nodules
-
-# filtering -- leave only images
-def filter_data(dataset_list, prefix = "img"):
-      ret = np.array([])
-      for nodule in dataset_list: #go through benign examples
-            valarr = nodule.split('_')
-            if (valarr[1] == prefix):
-                  ret = np.append(ret, [nodule])
-      return ret
-
-# print found classes + masks
-print("Img + masks. beingn: {}, malignant: {}".format(
-      len(benign_set), len(malignant_set)))
-
-benign_set = filter_data(benign_set)
-malignant_set = filter_data(malignant_set)
-
-print("Img. beingn: {}, malignant: {}".format(
-      len(benign_set), len(malignant_set)))
-
-# forming training and validation set
-train_count = int(getArgvKeyValue("-t", 100)) # should be 100
-validation_count = int(getArgvKeyValue("-v", 30)) # should be 50
+# loading training and validation set, setting parameters
+training_folder = getArgvKeyValue("-F") # folder for data loading
+check_folder(training_folder)
 train_pair_count = int(getArgvKeyValue("-tp", 800)) # we take 1500 pairs every training step (75% training)
 validation_pair_count = int(getArgvKeyValue("-vp", 100)) # we take 500 pairs for validation (25% validation)
 batch_size = int(getArgvKeyValue("-bs", 100)) # how many pairs form loss function in every training step (2 recomended)
@@ -81,8 +52,7 @@ print ("| Key | Parameter name          | Value   |")
 print ("+-----+-------------------------+---------+")
 print ("|         Tuning parameters table         |")
 print ("+-----+-------------------------+---------+")
-print ("| -t  | Train count             | {0:<7} |".format(train_count))
-print ("| -v  | Validation count        | {0:<7} |".format(validation_count))
+print ("| -F  | Training folder         | {0:<7} |".format(training_folder))
 print ("| -tp | Train pair count        | {0:<7} |".format(train_pair_count))
 print ("| -vp | Validation pair count   | {0:<7} |".format(validation_pair_count))
 print ("| -bs | Batch size              | {0:<7} |".format(batch_size))
@@ -102,17 +72,11 @@ print ("+-----+-------------------------+---------+")
 print("\n")
 
 #halve the train count and validation count (for two classes)
-train_count = int(train_count/2)
-validation_count = int(validation_count/2)
+train_malignant = np.load(os.path.join(training_folder, "train_malignant.npy"))
+train_benign = np.load(os.path.join(training_folder, "train_benign.npy"))
 
-np.random.shuffle(malignant_set)
-np.random.shuffle(benign_set)
-
-train_malignant = malignant_set[:train_count]
-train_benign = benign_set[:train_count]
-
-validation_malignant = malignant_set[train_count:train_count+validation_count]
-validation_benign = benign_set[train_count:train_count+validation_count]
+validation_malignant = np.load(os.path.join(training_folder, "validation_malignant.npy"))
+validation_benign = np.load(os.path.join(training_folder, "validation_benign.npy"))
 
 # TODO make save and load method of the list of training data
 
@@ -175,41 +139,33 @@ inner_model = tf.keras.models.Sequential()
 # here another types:
 # https://medium.com/@sidereal/cnns-architectures-lenet-alexnet-vgg-googlenet-resnet-and-more-666091488df5
 # Try big sizes of kernel : 11-16
-inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=13,
+inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=13,
             activation=tf.nn.relu, strides=1, input_shape=(16,64,64,1))) # (4, 52, 52)
-# do we actually need these strides?
+inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=(4, 9, 9),
+            strides=1, activation=tf.nn.relu)) # (1, 44, 44)
 inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(2, 2, 2))) # (2, 26, 26)
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 22, 22)
 
 
-inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=(2, 2, 2),
-            strides=1, activation=tf.nn.relu)) # (1, 25, 25)
+inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=(1, 7, 7),
+            strides=1, activation=tf.nn.relu)) # (1, 16, 16)
+inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=(1, 5, 5),
+            strides=1, activation=tf.nn.relu)) # (1, 12, 12)
 inner_model.add(tf.keras.layers.Dropout(0.1))
-# HERE 24 by 24 is like 28 by 28 in MNIST
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 6, 6)
 
-# times 4
-inner_model.add(tf.keras.layers.Conv3D(512, kernel_size=(1, 4, 4),
-            strides=1, activation=tf.nn.relu)) # (1, 22, 22)
+inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3),
+            strides=1, activation=tf.nn.relu)) # (1, 4, 4)
+inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3),
+            strides=1, activation=tf.nn.relu)) # (1, 2, 2)
 inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 11, 11)
-
-# times 3
-inner_model.add(tf.keras.layers.Conv3D(1536, kernel_size=(1, 4, 4),
-            strides=1, activation=tf.nn.relu)) # (1, 8, 8)
-inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 4, 4)
-
-# times 2
-inner_model.add(tf.keras.layers.Conv3D(3072, kernel_size=(1, 4, 4),
-            strides=1, activation=tf.nn.relu)) # (1, 1, 1)
+inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1, 1)
 
 # Then, we should flatten last layer
 # Avoid OOM!
 # https://stackoverflow.com/questions/53658501/out-of-memory-oom-error-of-tensorflow-keras-model
 inner_model.add(tf.keras.layers.Flatten())
-inner_model.add(tf.keras.layers.Dense(4096, activation=tf.nn.relu))
-inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.Dense(1024, activation=tf.nn.relu))
+inner_model.add(tf.keras.layers.Dense(512, activation=tf.nn.relu))
 inner_model.add(tf.keras.layers.Dropout(0.1))
 inner_model.add(tf.keras.layers.Dense(256, activation=tf.nn.sigmoid))
 
