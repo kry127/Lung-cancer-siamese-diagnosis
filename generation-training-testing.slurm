@@ -16,26 +16,29 @@ module purge
 source ~/activation
 
 # specify training folder for containing training and validation links
-TRAINING_FOLDER=training-list/2
+TRAINING_FOLDER=training-list/1
+
+# generate data for CNN training
+python3 generate_training.py \
+-F $TRAINING_FOLDER \
+-t  200      \
+-v  30     
 
 # create data and algorithm digest
-echo "tp=100 e=20 s=3 lr=6e-6 l=2e-4 th=1.0 m=10000.0 batch normalization\
-" >> ./$TRAINING_FOLDER/digest.txt
+echo "th=0.8 tp=600 e=50 m=3.5" > ./$TRAINING_FOLDER/digest.txt
 
 # run HPC task
 srun python3 3d_siamese.py \
 -F $TRAINING_FOLDER \
--tp 100      \
+-tp 600      \
 -vp 100      \
--bs 100      \
--e  20       \
--s  3        \
--lr 0.000006 \
+-bs 100       \
+-e  50       \
+-s  1        \
+-lr 0.000003 \
 -k  7        \
--l 0.0002    \
--th 1.0      \
--m  10000.0        \
--L "$TRAINING_FOLDER/default.model" \
+-th 0.8      \
+-m  3.5        \
 -S "$TRAINING_FOLDER/default.model"
 
 

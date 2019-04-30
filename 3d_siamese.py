@@ -1,3 +1,4 @@
+import keras
 import tensorflow as tf
 from keras import backend as K
 import os
@@ -40,8 +41,9 @@ steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch avail
 learning_rate = float(getArgvKeyValue("-lr",0.000006))
 
 k = int(getArgvKeyValue("-k", 5)) # knn parameter -- pick 5 nearest neibourgs
+lambda1 = float(getArgvKeyValue("-l", 0.0002)) # lambda1
 threshold = float(getArgvKeyValue("-th", 1)) # distance for both siamese accuracy and knn distance filter
-margin = float(getArgvKeyValue("-m", 3)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
+margin = float(getArgvKeyValue("-m", 1000)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
 
 model_weights_load_file = getArgvKeyValue("-L") # can be none
 model_weights_save_file = getArgvKeyValue("-S", "./lung_cancer_siamese_conv3D.model") # with default value
@@ -61,6 +63,7 @@ print ("| -s  | Steps per epoch         | {0:<7} |".format(steps_per_epoch))
 print ("| -lr | Learing rate            | {0:<7} |".format(learning_rate))
 print ("+-----+-------------------------+---------+")
 print ("| -k  | k                       | {0:<7} |".format(k))
+print ("| -l  | lambda1                 | {0:<7} |".format(lambda1))
 print ("| -th | threshold               | {0:<7} |".format(threshold))
 print ("| -m  | margin                  | {0:<7} |".format(margin))
 print ("+-----+-------------------------+---------+")
@@ -69,7 +72,7 @@ print ("+-----+-------------------------+---------+")
 print ("| -L  | Model weights load file | {0:<7} |".format(str(model_weights_load_file)))
 print ("| -S  | Model weights save file | {0:<7} |".format(model_weights_save_file))
 print ("+-----+-------------------------+---------+")
-print("\n")
+print("\n", flush = True)
 
 #halve the train count and validation count (for two classes)
 train_malignant = np.load(os.path.join(training_folder, "train_malignant.npy"))
@@ -109,13 +112,13 @@ print("Start loading data at {0:.3f} sec.".format(time_start_load - time_start))
 data_benign = load_train_data(train_benign, augment = True)
 data_malignant = load_train_data(train_malignant, augment = True)
 t_end = time.time()
-print("Training data loaded at {0:.3f} sec. in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load))
+print("Training data loaded at {0:.3f} sec. in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load), flush=True)
 
 time_start_load = time.time()
 data_validation_benign = load_train_data(validation_benign)
 data_validation_malignant = load_train_data(validation_malignant)
 t_end = time.time()
-print("Validation data loaded at {0:.3f} in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load))
+print("Validation data loaded at {0:.3f} in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load), flush=True)
 
 # Making siamese network for nodules comparison
 
@@ -124,14 +127,16 @@ print("Validation data loaded at {0:.3f} in {1:.3f} sec.".format(t_end - time_st
 # ResNet: https://neurohive.io/ru/vidy-nejrosetej/resnet-34-50-101/
 
 # First of all, let's create two input layers.
-ct_img1 = tf.keras.layers.Input(shape=(16,64,64))
-ct_img2 = tf.keras.layers.Input(shape=(16,64,64))
+ct_img1 = keras.layers.Input(shape=(16,64,64))
+ct_img2 = keras.layers.Input(shape=(16,64,64))
 # We should reshape input for 1 depth color channel, to feed into Conv3D layer
-ct_img1_r = tf.keras.layers.Reshape((16,64,64,1))(ct_img1)
-ct_img2_r = tf.keras.layers.Reshape((16,64,64,1))(ct_img2)
+ct_img1_r = keras.layers.Reshape((16,64,64,1))(ct_img1)
+ct_img2_r = keras.layers.Reshape((16,64,64,1))(ct_img2)
 
 # building sequential type of model
-inner_model = tf.keras.models.Sequential()
+
+#ResNet example: https://github.com/raghakot/keras-resnet/blob/master/resnet.py
+inner_model = keras.models.Sequential()
 
 # trying VGG-like model
 # https://www.quora.com/What-is-the-VGG-neural-network
@@ -139,35 +144,38 @@ inner_model = tf.keras.models.Sequential()
 # here another types:
 # https://medium.com/@sidereal/cnns-architectures-lenet-alexnet-vgg-googlenet-resnet-and-more-666091488df5
 # Try big sizes of kernel : 11-16
-inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=13,
+inner_model.add(keras.layers.BatchNormalization())
+inner_model.add(keras.layers.Activation("relu"))
+
+inner_model.add(keras.layers.Conv3D(128, kernel_size=13,
             activation=tf.nn.relu, strides=1, input_shape=(16,64,64,1))) # (4, 52, 52)
-inner_model.add(tf.keras.layers.Conv3D(64, kernel_size=(4, 9, 9),
+inner_model.add(keras.layers.Conv3D(128, kernel_size=(4, 9, 9),
             strides=1, activation=tf.nn.relu)) # (1, 44, 44)
-inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 22, 22)
+inner_model.add(keras.layers.SpatialDropout3D(0.1))
+inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 22, 22)
 
 
-inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=(1, 7, 7),
+inner_model.add(keras.layers.Conv3D(256, kernel_size=(1, 7, 7),
             strides=1, activation=tf.nn.relu)) # (1, 16, 16)
-inner_model.add(tf.keras.layers.Conv3D(128, kernel_size=(1, 5, 5),
+inner_model.add(keras.layers.Conv3D(256, kernel_size=(1, 5, 5),
             strides=1, activation=tf.nn.relu)) # (1, 12, 12)
-inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 6, 6)
+inner_model.add(keras.layers.SpatialDropout3D(0.1))
+inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 6, 6)
 
-inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3),
+inner_model.add(keras.layers.Conv3D(512, kernel_size=(1, 3, 3),
             strides=1, activation=tf.nn.relu)) # (1, 4, 4)
-inner_model.add(tf.keras.layers.Conv3D(256, kernel_size=(1, 3, 3),
+inner_model.add(keras.layers.Conv3D(512, kernel_size=(1, 3, 3),
             strides=1, activation=tf.nn.relu)) # (1, 2, 2)
-inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1, 1)
+inner_model.add(keras.layers.SpatialDropout3D(0.1))
+inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1, 1)
 
 # Then, we should flatten last layer
 # Avoid OOM!
 # https://stackoverflow.com/questions/53658501/out-of-memory-oom-error-of-tensorflow-keras-model
-inner_model.add(tf.keras.layers.Flatten())
-inner_model.add(tf.keras.layers.Dense(512, activation=tf.nn.relu))
-inner_model.add(tf.keras.layers.Dropout(0.1))
-inner_model.add(tf.keras.layers.Dense(256, activation=tf.nn.sigmoid))
+inner_model.add(keras.layers.Flatten())
+inner_model.add(keras.layers.Dense(1024, activation=tf.nn.relu))
+inner_model.add(keras.layers.Dropout(0.1))
+inner_model.add(keras.layers.Dense(1024, activation=keras.activations.linear))
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 
@@ -179,11 +187,11 @@ def lambda_layer(tensors):
     # print (K.sqrt(K.mean(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)))
     return K.sum(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)
 
-merge_layer_lambda = tf.keras.layers.Lambda(lambda_layer)
+merge_layer_lambda = keras.layers.Lambda(lambda_layer)
 merge_layer = merge_layer_lambda([ct_img_model1, ct_img_model2])
 
 # Finally, creating model with two inputs 'mnist_img' 1 and 2 and output 'final layer'
-model = tf.keras.Model([ct_img1, ct_img2], merge_layer)
+model = keras.Model([ct_img1, ct_img2], merge_layer)
 #model.summary()
 
 # Model is ready, let's compile it with quality function and optimizer
@@ -191,8 +199,9 @@ def contrastive_loss(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     '''
-    square_pred = K.square(y_pred)
-    margin_square = K.square(K.maximum(margin - y_pred, 0))
+    #y_pred = y_pred / K.sum(y_pred)
+    square_pred = y_pred
+    margin_square = lambda1 * K.square(K.maximum(margin - K.sqrt(y_pred), 0))
     return K.mean((1 - y_true) * square_pred + y_true * margin_square)
 
 # custom metrics
@@ -240,8 +249,8 @@ def knn_for_nodule(nodule, k, threshold):
 
     
 #https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
-optimizer = tf.keras.optimizers.Adam(lr = learning_rate)
-#optimizer = tf.keras.optimizers.SGD(lr=0.0005, momentum=0.3)
+optimizer = keras.optimizers.Adam(lr = learning_rate)
+#optimizer = keras.optimizers.SGD(lr=0.0005, momentum=0.3)
 model.compile(
     optimizer=optimizer,
     loss=contrastive_loss,
@@ -255,7 +264,12 @@ def preload_weights():
             if (model_weights_load_file != None):
                   exists = os.path.isfile(model_weights_load_file)
                   if exists:
-                        model = tf.keras.models.load_model(model_weights_load_file)
+
+                        # we should load it with custom objects
+                        # https://github.com/keras-team/keras/issues/5916
+                        model = keras.models.load_model(model_weights_load_file
+                              , custom_objects={'siamese_accuracy': siamese_accuracy,
+                                                'contrastive_loss': contrastive_loss})
                         return
             print("No weights file found specified at '-L' key!", file=os.sys.stderr)
 
@@ -375,6 +389,6 @@ def save_weights():
 save_weights()
 
 # final testing
-print("Computing knn distance-weighted accuracy on validation set")
-accuracy = knn_accuracy(k, threshold)
-print("accuracy(k={}, threshold={}) = {}".format(k, threshold, accuracy))
+# print("Computing knn distance-weighted accuracy on validation set")
+# accuracy = knn_accuracy(k, threshold)
+# print("accuracy(k={}, threshold={}) = {}".format(k, threshold, accuracy))
