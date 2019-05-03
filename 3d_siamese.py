@@ -138,33 +138,32 @@ ct_img2_r = keras.layers.Reshape((16,64,64,1))(ct_img2)
 #ResNet example: https://github.com/raghakot/keras-resnet/blob/master/resnet.py
 inner_model = keras.models.Sequential()
 
-# trying VGG-like model
+# here types of model:
 # https://www.quora.com/What-is-the-VGG-neural-network
-# VGG is bad :(
-# here another types:
 # https://medium.com/@sidereal/cnns-architectures-lenet-alexnet-vgg-googlenet-resnet-and-more-666091488df5
 # Try big sizes of kernel : 11-16
-inner_model.add(keras.layers.BatchNormalization())
-inner_model.add(keras.layers.Activation("relu"))
+
+#inner_model.add(keras.layers.BatchNormalization())
+#inner_model.add(keras.layers.Activation("relu"))
 
 inner_model.add(keras.layers.Conv3D(128, kernel_size=13,
             activation=tf.nn.relu, strides=1, input_shape=(16,64,64,1))) # (4, 52, 52)
-inner_model.add(keras.layers.Conv3D(128, kernel_size=(4, 9, 9),
+inner_model.add(keras.layers.Conv3D(512, kernel_size=(4, 9, 9),
             strides=1, activation=tf.nn.relu)) # (1, 44, 44)
 inner_model.add(keras.layers.SpatialDropout3D(0.1))
 inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 22, 22)
 
 
-inner_model.add(keras.layers.Conv3D(256, kernel_size=(1, 7, 7),
+inner_model.add(keras.layers.Conv3D(1024, kernel_size=(1, 7, 7),
             strides=1, activation=tf.nn.relu)) # (1, 16, 16)
-inner_model.add(keras.layers.Conv3D(256, kernel_size=(1, 5, 5),
+inner_model.add(keras.layers.Conv3D(1024, kernel_size=(1, 5, 5),
             strides=1, activation=tf.nn.relu)) # (1, 12, 12)
 inner_model.add(keras.layers.SpatialDropout3D(0.1))
 inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 6, 6)
 
-inner_model.add(keras.layers.Conv3D(512, kernel_size=(1, 3, 3),
+inner_model.add(keras.layers.Conv3D(2048, kernel_size=(1, 3, 3),
             strides=1, activation=tf.nn.relu)) # (1, 4, 4)
-inner_model.add(keras.layers.Conv3D(512, kernel_size=(1, 3, 3),
+inner_model.add(keras.layers.Conv3D(2048, kernel_size=(1, 3, 3),
             strides=1, activation=tf.nn.relu)) # (1, 2, 2)
 inner_model.add(keras.layers.SpatialDropout3D(0.1))
 inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1, 1)
@@ -173,9 +172,11 @@ inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1, 1)
 # Avoid OOM!
 # https://stackoverflow.com/questions/53658501/out-of-memory-oom-error-of-tensorflow-keras-model
 inner_model.add(keras.layers.Flatten())
-inner_model.add(keras.layers.Dense(1024, activation=tf.nn.relu))
-inner_model.add(keras.layers.Dropout(0.1))
-inner_model.add(keras.layers.Dense(1024, activation=keras.activations.linear))
+inner_model.add(keras.layers.Dense(4096, activation=tf.nn.relu))
+inner_model.add(keras.layers.Dense(2048, activation=tf.nn.sigmoid))
+inner_model.add(keras.layers.BatchNormalization())
+inner_model.add(keras.layers.Activation("relu"))
+inner_model.add(keras.layers.Dense(512, activation=keras.activations.linear))
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 
@@ -194,6 +195,10 @@ merge_layer = merge_layer_lambda([ct_img_model1, ct_img_model2])
 model = keras.Model([ct_img1, ct_img2], merge_layer)
 #model.summary()
 
+# mean_distance for cancers
+def mean_distance(y_true, y_pred):
+      return K.mean(y_pred)
+
 # Model is ready, let's compile it with quality function and optimizer
 def contrastive_loss(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
@@ -205,11 +210,25 @@ def contrastive_loss(y_true, y_pred):
     return K.mean((1 - y_true) * square_pred + y_true * margin_square)
 
 # custom metrics
-def siamese_accuracy(y_true, y_pred):
+def siamese_accuracy_far(y_true, y_pred):
     #https://github.com/tensorflow/tensorflow/issues/23133
     '''Compute classification accuracy with a fixed threshold on distances.
     '''
-    return K.mean(K.equal(y_true, K.cast(y_pred > threshold, y_true.dtype)))
+    # about Keras backend: https://stackoverflow.com/questions/49950130/logical-and-or-in-keras-backend
+    y_true = K.cast(y_true, 'bool')
+    dist_bool_mask = K.cast(y_pred > threshold, 'bool')
+    tp = K.sum(K.cast(keras.backend.all(keras.backend.stack([y_true, dist_bool_mask], axis=0), axis=0), 'float32'))
+    return tp / K.sum(K.cast(y_true, 'float32'))
+
+def siamese_accuracy_close(y_true, y_pred):
+    #https://github.com/tensorflow/tensorflow/issues/23133
+    '''Compute classification accuracy with a fixed threshold on distances.
+    '''
+    # about Keras backend: https://stackoverflow.com/questions/49950130/logical-and-or-in-keras-backend
+    y_false = K.cast(K.equal(y_true, K.cast(False, y_true.dtype)), 'bool')
+    dist_bool_mask = K.cast(y_pred <= threshold, 'bool')
+    fp = K.sum(K.cast(keras.backend.all(keras.backend.stack([y_false, dist_bool_mask], axis=0), axis=0), 'float32'))
+    return fp / K.sum(K.cast(y_false, 'float32'))
 
 def knn_for_nodule(nodule, k, threshold):
     # ввести арбитраж на основе расстояния
@@ -254,7 +273,7 @@ optimizer = keras.optimizers.Adam(lr = learning_rate)
 model.compile(
     optimizer=optimizer,
     loss=contrastive_loss,
-    metrics=[siamese_accuracy]
+    metrics=[mean_distance, siamese_accuracy_far, siamese_accuracy_close]
 )
 
 # check if user wants to preload existing weights
@@ -268,7 +287,9 @@ def preload_weights():
                         # we should load it with custom objects
                         # https://github.com/keras-team/keras/issues/5916
                         model = keras.models.load_model(model_weights_load_file
-                              , custom_objects={'siamese_accuracy': siamese_accuracy,
+                              , custom_objects={'siamese_accuracy_far': siamese_accuracy_far,
+                                                'siamese_accuracy_close': siamese_accuracy_close,
+                                                'mean_distance': mean_distance,
                                                 'contrastive_loss': contrastive_loss})
                         return
             print("No weights file found specified at '-L' key!", file=os.sys.stderr)
