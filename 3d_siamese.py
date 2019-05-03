@@ -35,6 +35,7 @@ training_folder = getArgvKeyValue("-F") # folder for data loading
 check_folder(training_folder)
 train_pair_count = int(getArgvKeyValue("-tp", 800)) # we take 1500 pairs every training step (75% training)
 validation_pair_count = int(getArgvKeyValue("-vp", 100)) # we take 500 pairs for validation (25% validation)
+same_benign = isArgvKeyPresented("-sb") # do we need benign-benign pairs in training and validation set?
 batch_size = int(getArgvKeyValue("-bs", 100)) # how many pairs form loss function in every training step (2 recomended)
 epochs_all = int(getArgvKeyValue("-e", 300)) # global epochs (with pair change)
 steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
@@ -57,6 +58,7 @@ print ("+-----+-------------------------+---------+")
 print ("| -F  | Training folder         | {0:<7} |".format(training_folder))
 print ("| -tp | Train pair count        | {0:<7} |".format(train_pair_count))
 print ("| -vp | Validation pair count   | {0:<7} |".format(validation_pair_count))
+print ("| -sb | Form benign-benign pair | {0:<7} |".format(same_benign))
 print ("| -bs | Batch size              | {0:<7} |".format(batch_size))
 print ("| -e  | Epochs all              | {0:<7} |".format(epochs_all))
 print ("| -s  | Steps per epoch         | {0:<7} |".format(steps_per_epoch))
@@ -173,23 +175,31 @@ inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1, 1)
 # https://stackoverflow.com/questions/53658501/out-of-memory-oom-error-of-tensorflow-keras-model
 inner_model.add(keras.layers.Flatten())
 inner_model.add(keras.layers.Dense(4096, activation=tf.nn.relu))
-inner_model.add(keras.layers.Dense(2048, activation=tf.nn.sigmoid))
+inner_model.add(keras.layers.Dense(2048, activation=tf.nn.relu))
 inner_model.add(keras.layers.BatchNormalization())
 inner_model.add(keras.layers.Activation("relu"))
-inner_model.add(keras.layers.Dense(512, activation=keras.activations.linear))
+inner_model.add(keras.layers.Dense(512, activation=keras.activations.softmax))
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 
 ct_img_model1 = inner_model(ct_img1_r)
 ct_img_model2 = inner_model(ct_img2_r)
 
-def lambda_layer(tensors):
+def sqr_distance_layer(tensors):
     # https://github.com/tensorflow/tensorflow/issues/12071
     # print (K.sqrt(K.mean(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)))
     return K.sum(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)
 
-merge_layer_lambda = keras.layers.Lambda(lambda_layer)
+def difference_layer(tensors):
+    # https://github.com/tensorflow/tensorflow/issues/12071
+    # print (K.sqrt(K.mean(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)))
+    return K.abs(tensors[0] - tensors[1])
+
+#merge_layer_lambda = keras.layers.Lambda(sqr_distance_layer)
+merge_layer_lambda = keras.layers.Lambda(difference_layer)
 merge_layer = merge_layer_lambda([ct_img_model1, ct_img_model2])
+# add FC layer to make similarity score
+merge_layer = keras.layers.Dense(1, activation=keras.activations.sigmoid)(merge_layer)
 
 # Finally, creating model with two inputs 'mnist_img' 1 and 2 and output 'final layer'
 model = keras.Model([ct_img1, ct_img2], merge_layer)
@@ -339,10 +349,10 @@ def form_pairs_auto(Nhalf, benign, malignant):
     pairs = np.swapaxes(pairs, 0, 1)
     return list(pairs), pairs_y
 
-def form_pairs_auto_no_same_benign(Nhalf, benign, malignant):
+def form_pairs_auto_no_same_benign(Nthird, benign, malignant):
     pairs = np.ndarray((0,2,16,64,64))
     pairs_y = np.ndarray((0, 1))
-    for i in range (0, Nhalf):
+    for i in range (0, Nthird):
       # replace = False ~ no repeats
       benign_index = np.random.choice(benign.shape[0], 3, replace=False)
       malignant_index = np.random.choice(malignant.shape[0], 3, replace=False)
@@ -370,13 +380,18 @@ def form_pairs_auto_no_same_benign(Nhalf, benign, malignant):
 
     pairs = np.swapaxes(pairs, 0, 1)
     return list(pairs), pairs_y
+
+def form_pairs(N, benign, malignant):
+      if same_benign:
+            return form_pairs_auto(int(np.ceil(validation_pair_count/4)), benign, malignant)
+      else:
+            return form_pairs_auto_no_same_benign(int(np.ceil(validation_pair_count/6)), benign, malignant)
     
 
 # forming pairs from validation
 time_start_load = time.time()
 print("Start forming validation tuples at {0:.3f} seconds".format(time_start_load - time_start))
-validation_tuple = form_pairs_auto_no_same_benign(int(np.ceil(validation_pair_count/4)),
-                  data_validation_benign, data_validation_malignant)
+validation_tuple = form_pairs(validation_pair_count, data_validation_benign, data_validation_malignant)
 t_end = time.time()
 print("Validation tuples formed at {0:.3f} in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load))
 print()
@@ -384,8 +399,7 @@ print()
 # The model is ready to train!
 for N in range(1, epochs_all+1):
     form_pairs_start_time = time.time()
-    pairs, pairs_y = form_pairs_auto_no_same_benign(int(np.ceil(train_pair_count/4)),
-                  data_benign, data_malignant)
+    pairs, pairs_y = form_pairs(train_pair_count, data_benign, data_malignant)
     print("Pairs formation: {0:.3f} seconds".format(time.time() - form_pairs_start_time))
     print("Epoch #{}/{} ".format(str(N), epochs_all))
     model.fit(pairs, pairs_y, epochs = steps_per_epoch, verbose=2, batch_size=batch_size
