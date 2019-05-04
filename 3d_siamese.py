@@ -58,7 +58,7 @@ print ("+-----+-------------------------+---------+")
 print ("| -F  | Training folder         | {0:<7} |".format(training_folder))
 print ("| -tp | Train pair count        | {0:<7} |".format(train_pair_count))
 print ("| -vp | Validation pair count   | {0:<7} |".format(validation_pair_count))
-print ("| -sb | Form benign-benign pair | {0:<7} |".format(same_benign))
+print ("| -sb | Form benign-benign pair | {0:<7} |".format(str(same_benign)))
 print ("| -bs | Batch size              | {0:<7} |".format(batch_size))
 print ("| -e  | Epochs all              | {0:<7} |".format(epochs_all))
 print ("| -s  | Steps per epoch         | {0:<7} |".format(steps_per_epoch))
@@ -215,8 +215,8 @@ def contrastive_loss(y_true, y_pred):
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     '''
     #y_pred = y_pred / K.sum(y_pred)
-    square_pred = y_pred
-    margin_square = lambda1 * K.square(K.maximum(margin - K.sqrt(y_pred), 0))
+    square_pred = K.square(y_pred)
+    margin_square = lambda1 * K.square(K.maximum(margin - y_pred, 0))
     return K.mean((1 - y_true) * square_pred + y_true * margin_square)
 
 # custom metrics
@@ -383,9 +383,9 @@ def form_pairs_auto_no_same_benign(Nthird, benign, malignant):
 
 def form_pairs(N, benign, malignant):
       if same_benign:
-            return form_pairs_auto(int(np.ceil(validation_pair_count/4)), benign, malignant)
+            return form_pairs_auto(int(np.ceil(N/4)), benign, malignant)
       else:
-            return form_pairs_auto_no_same_benign(int(np.ceil(validation_pair_count/6)), benign, malignant)
+            return form_pairs_auto_no_same_benign(int(np.ceil(N/6)), benign, malignant)
     
 
 # forming pairs from validation

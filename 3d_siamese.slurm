@@ -16,10 +16,10 @@ module purge
 source ~/activation
 
 # specify training folder for containing training and validation links
-TRAINING_FOLDER=training-list/4
+TRAINING_FOLDER=training-list/5
 
 # create data and algorithm digest
-echo "tp=128 e=20 s=3 lr=6e-5 l=6e-1 th=0.5 m=1.0 batch normalization\
+echo "tp=128 e=100 s=1 lr=3e-6 l=1.0 th=0.5 m=1.0 batch normalization\
 " >> ./$TRAINING_FOLDER/digest.txt
 
 # run HPC task
@@ -28,12 +28,12 @@ srun python3 3d_siamese.py \
 -tp 128      \
 -vp 100      \
 -bs 32      \
--e  20       \
--s  3        \
--lr 0.00006 \
+-e  100       \
+-s  1        \
+-lr 0.000003 \
 -k  7        \
--l 0.6    \
--th 1.0      \
+-l 1.0    \
+-th 0.5      \
 -m  1.0        \
 -L "$TRAINING_FOLDER/default.model" \
 -S "$TRAINING_FOLDER/default.model"
