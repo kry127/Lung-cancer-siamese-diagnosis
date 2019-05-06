@@ -41,11 +41,13 @@ epochs_all = int(getArgvKeyValue("-e", 300)) # global epochs (with pair change)
 steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
 learning_rate = float(getArgvKeyValue("-lr",0.000006))
 
-k = int(getArgvKeyValue("-k", 5)) # knn parameter -- pick 5 nearest neibourgs
+k = int(getArgvKeyValue("-k", 5)) # knn parameter -- pick k = 5 nearest neibourgs
+sigma = float(getArgvKeyValue("-si", 1)) # sigma parameter for distance
 lambda1 = float(getArgvKeyValue("-l", 0.0002)) # lambda1
 threshold = float(getArgvKeyValue("-th", 1)) # distance for both siamese accuracy and knn distance filter
 margin = float(getArgvKeyValue("-m", 1000)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
 
+knn = isArgvKeyPresented("-knn")
 model_weights_load_file = getArgvKeyValue("-L") # can be none
 model_weights_save_file = getArgvKeyValue("-S", "./lung_cancer_siamese_conv3D.model") # with default value
 
@@ -65,12 +67,14 @@ print ("| -s  | Steps per epoch         | {0:<7} |".format(steps_per_epoch))
 print ("| -lr | Learing rate            | {0:<7} |".format(learning_rate))
 print ("+-----+-------------------------+---------+")
 print ("| -k  | k                       | {0:<7} |".format(k))
+print ("| -si | sigma                   | {0:<7} |".format(sigma))
 print ("| -l  | lambda1                 | {0:<7} |".format(lambda1))
 print ("| -th | threshold               | {0:<7} |".format(threshold))
 print ("| -m  | margin                  | {0:<7} |".format(margin))
 print ("+-----+-------------------------+---------+")
 print ("|            Other parameters             |")
 print ("+-----+-------------------------+---------+")
+print ("| -knn| Apply knn stage         | {0:<7} |".format(str(knn)))
 print ("| -L  | Model weights load file | {0:<7} |".format(str(model_weights_load_file)))
 print ("| -S  | Model weights save file | {0:<7} |".format(model_weights_save_file))
 print ("+-----+-------------------------+---------+")
@@ -145,28 +149,38 @@ inner_model = keras.models.Sequential()
 # https://medium.com/@sidereal/cnns-architectures-lenet-alexnet-vgg-googlenet-resnet-and-more-666091488df5
 # Try big sizes of kernel : 11-16
 
-#inner_model.add(keras.layers.BatchNormalization())
-#inner_model.add(keras.layers.Activation("relu"))
-
-inner_model.add(keras.layers.Conv3D(128, kernel_size=13,
-            activation=tf.nn.relu, strides=1, input_shape=(16,64,64,1))) # (4, 52, 52)
-inner_model.add(keras.layers.Conv3D(512, kernel_size=(4, 9, 9),
-            strides=1, activation=tf.nn.relu)) # (1, 44, 44)
+inner_model.add(keras.layers.Conv3D(64, kernel_size=11,
+            activation=tf.nn.relu,
+            strides=1, kernel_initializer = "he_normal",
+            input_shape=(16,64,64,1))) # (6, 54, 54)
+inner_model.add(keras.layers.Conv3D(128, kernel_size=(5, 5, 5),
+            strides=1, kernel_initializer = "he_normal",
+            activation=tf.nn.relu)) # (2, 50, 50)
+inner_model.add(keras.layers.BatchNormalization())
+inner_model.add(keras.layers.Activation("relu"))
 inner_model.add(keras.layers.SpatialDropout3D(0.1))
-inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 22, 22)
+inner_model.add(keras.layers.MaxPooling3D(pool_size=(2, 2, 2))) # (1, 25, 25)
 
 
-inner_model.add(keras.layers.Conv3D(1024, kernel_size=(1, 7, 7),
-            strides=1, activation=tf.nn.relu)) # (1, 16, 16)
+inner_model.add(keras.layers.Conv3D(256, kernel_size=(1, 6, 6),
+            strides=1, kernel_initializer = "he_normal",
+            activation=tf.nn.relu)) # (1, 20, 20)
+inner_model.add(keras.layers.Conv3D(512, kernel_size=(1, 5, 5),
+            strides=1, kernel_initializer = "he_normal",
+            activation=tf.nn.relu)) # (1, 16, 16)
+inner_model.add(keras.layers.BatchNormalization())
+inner_model.add(keras.layers.Activation("relu"))
+inner_model.add(keras.layers.SpatialDropout3D(0.1))
+inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 8, 8)
+
 inner_model.add(keras.layers.Conv3D(1024, kernel_size=(1, 5, 5),
-            strides=1, activation=tf.nn.relu)) # (1, 12, 12)
-inner_model.add(keras.layers.SpatialDropout3D(0.1))
-inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 6, 6)
-
+            strides=1, kernel_initializer = "he_normal",
+            activation=tf.nn.relu)) # (1, 4, 4)
 inner_model.add(keras.layers.Conv3D(2048, kernel_size=(1, 3, 3),
-            strides=1, activation=tf.nn.relu)) # (1, 4, 4)
-inner_model.add(keras.layers.Conv3D(2048, kernel_size=(1, 3, 3),
-            strides=1, activation=tf.nn.relu)) # (1, 2, 2)
+            strides=1, kernel_initializer = "he_normal",
+            activation=tf.nn.relu)) # (1, 2, 2)
+inner_model.add(keras.layers.BatchNormalization())
+inner_model.add(keras.layers.Activation("relu"))
 inner_model.add(keras.layers.SpatialDropout3D(0.1))
 inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1, 1)
 
@@ -174,11 +188,9 @@ inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1, 1)
 # Avoid OOM!
 # https://stackoverflow.com/questions/53658501/out-of-memory-oom-error-of-tensorflow-keras-model
 inner_model.add(keras.layers.Flatten())
-inner_model.add(keras.layers.Dense(4096, activation=tf.nn.relu))
-inner_model.add(keras.layers.Dense(2048, activation=tf.nn.relu))
-inner_model.add(keras.layers.BatchNormalization())
-inner_model.add(keras.layers.Activation("relu"))
-inner_model.add(keras.layers.Dense(512, activation=keras.activations.softmax))
+inner_model.add(keras.layers.Dense(2048, activation=tf.nn.relu, kernel_initializer = "he_normal",))
+inner_model.add(keras.layers.Dense(256, activation=tf.nn.relu,  kernel_initializer = "he_normal",))
+inner_model.add(keras.layers.Dense(64, activation=keras.activations.sigmoid,  kernel_initializer = "he_normal",))
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 
@@ -188,18 +200,18 @@ ct_img_model2 = inner_model(ct_img2_r)
 def sqr_distance_layer(tensors):
     # https://github.com/tensorflow/tensorflow/issues/12071
     # print (K.sqrt(K.mean(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)))
-    return K.sum(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)
+    return K.sqrt(K.sum(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True))
 
 def difference_layer(tensors):
     # https://github.com/tensorflow/tensorflow/issues/12071
     # print (K.sqrt(K.mean(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)))
     return K.abs(tensors[0] - tensors[1])
 
-#merge_layer_lambda = keras.layers.Lambda(sqr_distance_layer)
-merge_layer_lambda = keras.layers.Lambda(difference_layer)
+merge_layer_lambda = keras.layers.Lambda(sqr_distance_layer)
+#merge_layer_lambda = keras.layers.Lambda(difference_layer)
 merge_layer = merge_layer_lambda([ct_img_model1, ct_img_model2])
 # add FC layer to make similarity score
-merge_layer = keras.layers.Dense(1, activation=keras.activations.sigmoid)(merge_layer)
+#merge_layer = keras.layers.Dense(1, activation=keras.activations.sigmoid)(merge_layer)
 
 # Finally, creating model with two inputs 'mnist_img' 1 and 2 and output 'final layer'
 model = keras.Model([ct_img1, ct_img2], merge_layer)
@@ -240,7 +252,7 @@ def siamese_accuracy_close(y_true, y_pred):
     fp = K.sum(K.cast(keras.backend.all(keras.backend.stack([y_false, dist_bool_mask], axis=0), axis=0), 'float32'))
     return fp / K.sum(K.cast(y_false, 'float32'))
 
-def knn_for_nodule(nodule, k, threshold):
+def knn_for_nodule(nodule, k, threshold, sigma):
     # ввести арбитраж на основе расстояния
     # например, на основе экспонентациальной функции (e^-x)
     rho_benign = model.predict([np.tile(nodule, (len(data_benign), 1, 1, 1)), data_benign])
@@ -251,13 +263,13 @@ def knn_for_nodule(nodule, k, threshold):
     rho_malignant = np.sort(rho_malignant[np.where(rho_malignant < threshold)])
 
     # insufficient amount of neigbours
-    if (len(rho_benign) + len(rho_malignant) < 5):
+    if (len(rho_benign) + len(rho_malignant) < k):
       return None
 
     # далее, необходимо ввести экспонентациальную зависимость (e^-x) от каждого ближайшего соседа
     # (гауссово распределение)
     # по закону трёх сигм: sigma = threshold / 3. СТОИТ ЛИ ВВОДИТЬ?
-    weighter = np.vectorize(lambda x: np.sign(x)*np.e ** -np.abs(x))
+    weighter = np.vectorize(lambda x: np.sign(x)/sigma*np.e ** -(((x/sigma)**2)/2) )
 
     rho = np.append(-rho_benign, rho_malignant)
     rho_weights = weighter(rho)
@@ -267,14 +279,35 @@ def knn_for_nodule(nodule, k, threshold):
     rho_abs_weights_id_sorted = np.argsort(rho_abs_weights)
     rho_weights = rho_weights[rho_abs_weights_id_sorted]
 
-    # TODO choose 5 biggest by module weights
+    # TODO choose k biggest by module weights
     # TODO sum chosen weights and pass to heavyside function
-    result = np.sum(rho_weights[-5:])
+    result = np.sum(rho_weights[-k:])
 
     if (result > 0):
           return 1 # malignant
     elif (result <= 0):
           return 0 # benign
+
+
+def knn_benign_accuracy(k, threshold, sigma):
+      N = 0
+      t = 0
+      for benign_nodule in data_validation_benign:
+            result = knn_for_nodule(benign_nodule, k, threshold, sigma)
+            N += 1
+            if result == 0:
+                  t += 1
+      return t / N
+
+def knn_malignant_accuracy(k, threshold, sigma):
+      N = 0
+      t = 0
+      for malignant_nodule in data_validation_malignant:
+            result = knn_for_nodule(malignant_nodule, k, threshold, sigma)
+            N += 1
+            if result == 1:
+                  t += 1
+      return t / N
 
     
 #https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
@@ -305,22 +338,6 @@ def preload_weights():
             print("No weights file found specified at '-L' key!", file=os.sys.stderr)
 
 preload_weights()
-
-
-def knn_accuracy(k, threshold):
-      N = 0
-      t = 0
-      for benign_nodule in data_validation_benign:
-            result = knn_for_nodule(benign_nodule, k, threshold)
-            N += 1
-            if result == 0:
-                  t += 1
-      for malignant_nodule in data_validation_malignant:
-            result = knn_for_nodule(malignant_nodule, k, threshold)
-            N += 1
-            if result == 1:
-                  t += 1
-      return t / N
 
 # automatically forming training pairs
 # N is half of of the batch size
@@ -424,6 +441,11 @@ def save_weights():
 save_weights()
 
 # final testing
-# print("Computing knn distance-weighted accuracy on validation set")
-# accuracy = knn_accuracy(k, threshold)
-# print("accuracy(k={}, threshold={}) = {}".format(k, threshold, accuracy))
+if knn:
+      print("Computing knn distance-weighted accuracy on validation set")
+      print("Knn params: k={}, threshold={}, sigma = {}".format(k, threshold, sigma))
+      benign_accuracy = knn_benign_accuracy(k, threshold, sigma)
+      malignant_accuracy = knn_malignant_accuracy(k, threshold, sigma)
+      print("benign_accuracy = {}".format(benign_accuracy))
+      print("malignant_accuracy = {}".format(malignant_accuracy))
+      print("accuracy = {}".format((benign_accuracy + malignant_accuracy)/2))
