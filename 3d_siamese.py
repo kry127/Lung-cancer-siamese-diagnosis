@@ -5,6 +5,7 @@ import os
 import numpy as np
 import time
 import utility
+import data_loader
 from utility import getArgvKeyValue
 from utility import isArgvKeyPresented
 
@@ -80,52 +81,8 @@ print ("| -S  | Model weights save file | {0:<7} |".format(model_weights_save_fi
 print ("+-----+-------------------------+---------+")
 print("\n", flush = True)
 
-#halve the train count and validation count (for two classes)
-train_malignant = np.load(os.path.join(training_folder, "train_malignant.npy"))
-train_benign = np.load(os.path.join(training_folder, "train_benign.npy"))
-
-validation_malignant = np.load(os.path.join(training_folder, "validation_malignant.npy"))
-validation_benign = np.load(os.path.join(training_folder, "validation_benign.npy"))
-
-# TODO make save and load method of the list of training data
-
-# print found classes
-print("train_beingn: {}, train_malignant: {}, validation_benign: {}, validation_malignant: {}\n".format(
-      len(train_benign), len(train_malignant), len(validation_malignant), len(validation_benign)))
-
-# load data 
-def load_train_data(dataset_list, augment = None):
-      data_nodules = np.ndarray((0,16,64,64))
-      for nodule in dataset_list: #go through benign examples
-            valarr = nodule.split('_')
-            if (valarr[1] == "img"):
-                  data = np.load(os.path.join(ct_folder, nodule))
-                  data_nodules = np.append(data_nodules, [data], axis = 0)
-                  # data augmentation: there are 8 flips of image
-                  if augment:
-                        data_nodules = np.append(data_nodules, [np.flip(data, (0))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (1))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (2))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 1))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (1, 2))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 2))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 1, 2))], axis = 0)
-      return data_nodules
-
-
-time_start_load = time.time()
-print("Start loading data at {0:.3f} sec.".format(time_start_load - time_start))
-data_benign = load_train_data(train_benign, augment = True)
-data_malignant = load_train_data(train_malignant, augment = True)
-t_end = time.time()
-print("Training data loaded at {0:.3f} sec. in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load), flush=True)
-
-time_start_load = time.time()
-data_validation_benign = load_train_data(validation_benign)
-data_validation_malignant = load_train_data(validation_malignant)
-t_end = time.time()
-print("Validation data loaded at {0:.3f} in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load), flush=True)
-
+# init loader class
+loader = data_loader.Loader(training_folder, ct_folder, same_benign)
 # Making siamese network for nodules comparison
 
 # More info about Keras Layers: https://keras.io/layers/core/, https://keras.io/layers/convolutional/
@@ -217,6 +174,9 @@ merge_layer = merge_layer_lambda([ct_img_model1, ct_img_model2])
 model = keras.Model([ct_img1, ct_img2], merge_layer)
 #model.summary()
 
+# parallelizing model on two GPU's
+model = keras.utils.multi_gpu_model(model, gpus=2)
+
 # mean_distance for cancers
 def mean_distance(y_true, y_pred):
       return K.mean(y_pred)
@@ -255,8 +215,8 @@ def siamese_accuracy_close(y_true, y_pred):
 def knn_for_nodule(nodule, k, threshold, sigma):
     # ввести арбитраж на основе расстояния
     # например, на основе экспонентациальной функции (e^-x)
-    rho_benign = model.predict([np.tile(nodule, (len(data_benign), 1, 1, 1)), data_benign])
-    rho_malignant = model.predict([np.tile(nodule, (len(data_malignant), 1, 1, 1)), data_malignant])
+    rho_benign = model.predict([np.tile(nodule, (len(loader.data_benign), 1, 1, 1)), loader.data_benign])
+    rho_malignant = model.predict([np.tile(nodule, (len(loader.data_malignant), 1, 1, 1)), loader.data_malignant])
 
     # учитывая расстояние threshold, отсекаем и сортируем данные
     rho_benign = np.sort(rho_benign[np.where(rho_benign < threshold)])
@@ -292,7 +252,7 @@ def knn_for_nodule(nodule, k, threshold, sigma):
 def knn_benign_accuracy(k, threshold, sigma):
       N = 0
       t = 0
-      for benign_nodule in data_validation_benign:
+      for benign_nodule in loader.data_validation_benign:
             result = knn_for_nodule(benign_nodule, k, threshold, sigma)
             N += 1
             if result == 0:
@@ -302,7 +262,7 @@ def knn_benign_accuracy(k, threshold, sigma):
 def knn_malignant_accuracy(k, threshold, sigma):
       N = 0
       t = 0
-      for malignant_nodule in data_validation_malignant:
+      for malignant_nodule in loader.data_validation_malignant:
             result = knn_for_nodule(malignant_nodule, k, threshold, sigma)
             N += 1
             if result == 1:
@@ -338,77 +298,13 @@ def preload_weights():
             print("No weights file found specified at '-L' key!", file=os.sys.stderr)
 
 preload_weights()
-
-# automatically forming training pairs
-# N is half of of the batch size
-def form_pairs_auto(Nhalf, benign, malignant):
-    pairs = np.ndarray((0,2,16,64,64))
-    pairs_y = np.ndarray((0, 1))
-    for i in range (0, Nhalf):
-      # replace = False ~ no repeats
-      benign_index = np.random.choice(benign.shape[0], 2, replace=False)
-      malignant_index = np.random.choice(malignant.shape[0], 2, replace=False)
-      A = benign[benign_index[0],:,:,:]
-      B = malignant[malignant_index[0],:,:,:]
-      C = benign[benign_index[1],:,:,:]
-      D = malignant[malignant_index[1],:,:,:]
-      # different
-      pairs = np.append(pairs, [np.array([A, B])], axis=0)
-      pairs_y = np.append(pairs_y, 1) 
-      pairs = np.append(pairs, [np.array([C, D])], axis=0)
-      pairs_y = np.append(pairs_y, 1) 
-      # same
-      pairs = np.append(pairs, [np.array([A, C])], axis=0)
-      pairs_y = np.append(pairs_y, 0)
-      pairs = np.append(pairs, [np.array([B, D])], axis=0)
-      pairs_y = np.append(pairs_y, 0)
-
-    pairs = np.swapaxes(pairs, 0, 1)
-    return list(pairs), pairs_y
-
-def form_pairs_auto_no_same_benign(Nthird, benign, malignant):
-    pairs = np.ndarray((0,2,16,64,64))
-    pairs_y = np.ndarray((0, 1))
-    for i in range (0, Nthird):
-      # replace = False ~ no repeats
-      benign_index = np.random.choice(benign.shape[0], 3, replace=False)
-      malignant_index = np.random.choice(malignant.shape[0], 3, replace=False)
-      b1 = benign[benign_index[0],:,:,:]
-      b2 = benign[benign_index[1],:,:,:]
-      b3 = benign[benign_index[2],:,:,:]
-      m1 = malignant[malignant_index[0],:,:,:]
-      m2 = malignant[malignant_index[1],:,:,:]
-      m3 = malignant[malignant_index[2],:,:,:]
-
-      # different
-      pairs = np.append(pairs, [np.array([b1, m1])], axis=0)
-      pairs_y = np.append(pairs_y, 1) 
-      pairs = np.append(pairs, [np.array([b2, m2])], axis=0)
-      pairs_y = np.append(pairs_y, 1) 
-      pairs = np.append(pairs, [np.array([b3, m3])], axis=0)
-      pairs_y = np.append(pairs_y, 1) 
-      # same
-      pairs = np.append(pairs, [np.array([b1, b2])], axis=0)
-      pairs_y = np.append(pairs_y, 0)
-      pairs = np.append(pairs, [np.array([b1, b3])], axis=0)
-      pairs_y = np.append(pairs_y, 0)
-      pairs = np.append(pairs, [np.array([b2, b3])], axis=0)
-      pairs_y = np.append(pairs_y, 0)
-
-    pairs = np.swapaxes(pairs, 0, 1)
-    return list(pairs), pairs_y
-
-def form_pairs(N, benign, malignant):
-      if same_benign:
-            return form_pairs_auto(int(np.ceil(N/4)), benign, malignant)
-      else:
-            return form_pairs_auto_no_same_benign(int(np.ceil(N/6)), benign, malignant)
     
 
 # forming pairs from validation
 time_start_load = time.time()
 print("Start forming validation tuples at {0:.3f} seconds".format(time_start_load - time_start))
-validation_tuple = form_pairs(validation_pair_count, data_validation_benign, data_validation_malignant)
+validation_tuple = loader.form_pairs(validation_pair_count,
+                  loader.data_validation_benign, loader.data_validation_malignant)
 t_end = time.time()
 print("Validation tuples formed at {0:.3f} in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load))
 print()
@@ -416,7 +312,8 @@ print()
 # The model is ready to train!
 for N in range(1, epochs_all+1):
     form_pairs_start_time = time.time()
-    pairs, pairs_y = form_pairs(train_pair_count, data_benign, data_malignant)
+    pairs, pairs_y = loader.form_pairs(train_pair_count,
+                        loader.data_benign, loader.data_malignant)
     print("Pairs formation: {0:.3f} seconds".format(time.time() - form_pairs_start_time))
     print("Epoch #{}/{} ".format(str(N), epochs_all))
     model.fit(pairs, pairs_y, epochs = steps_per_epoch, verbose=2, batch_size=batch_size
