@@ -17,24 +17,26 @@ class Pair_Generator(Sequence):
         self.batch_size = batch_size // 2 # because we balance pairs
         self.same_benign = loader.same_benign
         if self.same_benign:
-            self.length = np.max(self.loader.len_different(), self.loader.len_same())
+            self.length = np.max([self.loader.len_different(), self.loader.len_same()])
             self.index_diff = np.arange(self.loader.len_different())
             self.index_same = np.arange(self.loader.len_same())
         else:
-            self.length = np.max(self.loader.len_different(), self.loader.len_malignant_malignant())
+            self.length = np.max([self.loader.len_different(), self.loader.len_malignant_malignant()])
             self.index_diff = np.arange(self.loader.len_different())
             self.index_same = np.arange(self.loader.len_malignant_malignant())
 
         len_diff = len(self.index_diff)
         len_same = len(self.index_same)
         if (len_diff > len_same):
-            np.tile(self.index_same, np.ceil(len_diff / len_same))
+            self.index_same = np.tile(self.index_same, int(np.ceil(len_diff / len_same)))
+            self.index_same = self.index_same[:len_diff]
         elif (len_same > len_diff):
-            np.tile(self.index_diff, np.ceil(len_same / len_diff))
+            self.index_diff = np.tile(self.index_diff, int(np.ceil(len_same / len_diff)))
+            self.index_diff = self.index_diff[:len_same]
 
 
     def __len__(self):
-        return np.ceil(self.length / float(self.batch_size))
+        return int(np.ceil(self.length / float(self.batch_size)))
 
     def __getitem__(self, idx):
         batch_same = self.index_same[idx * self.batch_size:(idx + 1) * self.batch_size]
@@ -104,10 +106,11 @@ class Loader:
     1. loading ct images
     2. accesing ct image pairs using linear index
     """
-    def __init__(self, training_folder, data_folder, same_benign=True):
+    def __init__(self, training_folder, data_folder, same_benign=True, augmentation=True):
         self.training_folder = training_folder
         self.data_folder = data_folder
         self.same_benign = same_benign
+        self.augmentation = augmentation
 
         #halve the train count and validation count (for two classes)
         self.train_malignant = np.load(os.path.join(training_folder, "train_malignant.npy"))
@@ -123,8 +126,8 @@ class Loader:
             len(self.train_benign), len(self.train_malignant),
             len(self.validation_malignant), len(self.validation_benign)))
 
-        self.data_benign = self.load_train_data(self.train_benign, augment=True)
-        self.data_malignant = self.load_train_data(self.train_benign, augment=True)
+        self.data_benign = self.load_train_data(self.train_benign, augment=self.augmentation)
+        self.data_malignant = self.load_train_data(self.train_benign, augment=self.augmentation)
         self.data_validation_benign = self.load_train_data(self.validation_malignant)
         self.data_validation_malignant = self.load_train_data(self.validation_benign)
 
@@ -175,7 +178,7 @@ class Loader:
     def get_different(self, index):
         w = self.data_malignant.shape[0]
         i = index // w # benign index
-        j = index - i # malignant index
+        j = index - i*w # malignant index
         return get_pair(self.data_benign, self.data_malignant, i, j)
 
     def get_same(self, index):

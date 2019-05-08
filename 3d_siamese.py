@@ -41,6 +41,7 @@ batch_size = int(getArgvKeyValue("-bs", 100)) # how many pairs form loss functio
 epochs_all = int(getArgvKeyValue("-e", 300)) # global epochs (with pair change)
 steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
 learning_rate = float(getArgvKeyValue("-lr",0.000006))
+augmentation = isArgvKeyPresented("-aug")
 
 k = int(getArgvKeyValue("-k", 5)) # knn parameter -- pick k = 5 nearest neibourgs
 sigma = float(getArgvKeyValue("-si", 1)) # sigma parameter for distance
@@ -66,6 +67,7 @@ print ("| -bs | Batch size              | {0:<7} |".format(batch_size))
 print ("| -e  | Epochs all              | {0:<7} |".format(epochs_all))
 print ("| -s  | Steps per epoch         | {0:<7} |".format(steps_per_epoch))
 print ("| -lr | Learing rate            | {0:<7} |".format(learning_rate))
+print ("| -aug| Augmentation            | {0:<7} |".format(str(augmentation)))
 print ("+-----+-------------------------+---------+")
 print ("| -k  | k                       | {0:<7} |".format(k))
 print ("| -si | sigma                   | {0:<7} |".format(sigma))
@@ -82,7 +84,7 @@ print ("+-----+-------------------------+---------+")
 print("\n", flush = True)
 
 # init loader class
-loader = data_loader.Loader(training_folder, ct_folder, same_benign)
+loader = data_loader.Loader(training_folder, ct_folder, same_benign, augmentation)
 # Making siamese network for nodules comparison
 
 # More info about Keras Layers: https://keras.io/layers/core/, https://keras.io/layers/convolutional/
@@ -175,7 +177,7 @@ model = keras.Model([ct_img1, ct_img2], merge_layer)
 #model.summary()
 
 # parallelizing model on two GPU's
-model = keras.utils.multi_gpu_model(model, gpus=2)
+# model = keras.utils.multi_gpu_model(model, gpus=2)
 
 # mean_distance for cancers
 def mean_distance(y_true, y_pred):
@@ -309,18 +311,18 @@ t_end = time.time()
 print("Validation tuples formed at {0:.3f} in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load))
 print()
 
+# creating sequencer
+training_batch_generator = loader.get_training_generator(batch_size)
+
 # The model is ready to train!
-for N in range(1, epochs_all+1):
-    form_pairs_start_time = time.time()
-    pairs, pairs_y = loader.form_pairs(train_pair_count,
-                        loader.data_benign, loader.data_malignant)
-    print("Pairs formation: {0:.3f} seconds".format(time.time() - form_pairs_start_time))
-    print("Epoch #{}/{} ".format(str(N), epochs_all))
-    model.fit(pairs, pairs_y, epochs = steps_per_epoch, verbose=2, batch_size=batch_size
-                  , validation_data = validation_tuple)
-    #print("Batch {}, validation accuracy: {}".format(str(N), knn_accuracy(threshold)))
-    # лучше сделать подсчёт accuracy по ПАРАМ на валидационной выборке
-    # knn_accuracy сделать на ТЕСТОВОЙ
+if steps_per_epoch <= 0:
+      steps_per_epoch = None
+model.fit_generator(generator=training_batch_generator,
+      epochs=epochs_all,
+      steps_per_epoch = steps_per_epoch,
+      verbose=1,
+      shuffle=True,
+      validation_data=validation_tuple)
 
 # saving model is easy
 #https://stackoverflow.com/questions/52553593/tensorflow-keras-model-save-raise-notimplementederror
