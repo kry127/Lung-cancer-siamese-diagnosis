@@ -18,12 +18,12 @@ source ~/activation
 # specify training folder for containing training and validation links
 TRAINING_FOLDER=training-list/6
 BATCHSIZE=128
-EPOCHS=1
-LAMBDA=0.0818
+EPOCHS=3
+LAMBDA=0.08154
 THRESHOLD=1.0
 
 # create data and algorithm digest
-echo "bs=$BATCHSIZE e=$EPOCHS  lr=9e-7 l=$LAMBDA th=$THRESHOLD m=12.0 batch_norm he_normal\
+echo "bs=$BATCHSIZE e=$EPOCHS  lr=9e-7 l=$LAMBDA th=$THRESHOLD m=12.0 same_benign batch_norm he_normal\
 " >> ./$TRAINING_FOLDER/digest.txt
 
 # run HPC task
@@ -34,6 +34,7 @@ srun python3 3d_siamese.py \
 -bs $BATCHSIZE      \
 -e  $EPOCHS     \
 -s  -1        \
+-sb           \
 -lr 0.0000009 \
 -aug         \
 -k  7        \

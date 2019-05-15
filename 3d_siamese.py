@@ -177,7 +177,7 @@ model = keras.Model([ct_img1, ct_img2], merge_layer)
 #model.summary()
 
 # parallelizing model on two GPU's
-model = keras.utils.multi_gpu_model(model, gpus=2)
+#model = keras.utils.multi_gpu_model(model, gpus=2)
 
 # mean_distance for cancers
 def mean_distance(y_true, y_pred):
