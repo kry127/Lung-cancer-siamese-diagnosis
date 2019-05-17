@@ -27,10 +27,10 @@ srun python3 3d_siamese.py \
 -e  0       \
 -s  0        \
 -lr 0.0000009 \
--k  9        \
--si 4.0     \
+-k  1        \
+-si 3.0     \
 -l 1.0    \
--th 2.0      \
+-th 4.5      \
 -m  15.0        \
 -knn              \
 -L "$TRAINING_FOLDER/default.model"

@@ -40,13 +40,13 @@ same_benign = isArgvKeyPresented("-sb") # do we need benign-benign pairs in trai
 batch_size = int(getArgvKeyValue("-bs", 100)) # how many pairs form loss function in every training step (2 recomended)
 epochs_all = int(getArgvKeyValue("-e", 300)) # global epochs (with pair change)
 steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
-learning_rate = float(getArgvKeyValue("-lr",0.000006))
+learning_rate = float(getArgvKeyValue("-lr", 0.000006))
 augmentation = isArgvKeyPresented("-aug")
 
 k = int(getArgvKeyValue("-k", 5)) # knn parameter -- pick k = 5 nearest neibourgs
 sigma = float(getArgvKeyValue("-si", 1)) # sigma parameter for distance
 lambda1 = float(getArgvKeyValue("-l", 0.0002)) # lambda1
-threshold = float(getArgvKeyValue("-th", 1)) # distance for both siamese accuracy and knn distance filter
+threshold = float(getArgvKeyValue("-th", 10)) # distance for both siamese accuracy and knn distance filter
 margin = float(getArgvKeyValue("-m", 1000)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
 
 knn = isArgvKeyPresented("-knn")
@@ -124,7 +124,7 @@ inner_model.add(keras.layers.MaxPooling3D(pool_size=(2, 2, 2))) # (1, 25, 25)
 inner_model.add(keras.layers.Conv3D(256, kernel_size=(1, 6, 6),
             strides=1, kernel_initializer = "he_normal",
             activation=tf.nn.relu)) # (1, 20, 20)
-inner_model.add(keras.layers.Conv3D(512, kernel_size=(1, 5, 5),
+inner_model.add(keras.layers.Conv3D(256, kernel_size=(1, 5, 5),
             strides=1, kernel_initializer = "he_normal",
             activation=tf.nn.relu)) # (1, 16, 16)
 inner_model.add(keras.layers.BatchNormalization())
@@ -132,10 +132,10 @@ inner_model.add(keras.layers.Activation("relu"))
 inner_model.add(keras.layers.SpatialDropout3D(0.1))
 inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 8, 8)
 
-inner_model.add(keras.layers.Conv3D(1024, kernel_size=(1, 5, 5),
+inner_model.add(keras.layers.Conv3D(512, kernel_size=(1, 5, 5),
             strides=1, kernel_initializer = "he_normal",
             activation=tf.nn.relu)) # (1, 4, 4)
-inner_model.add(keras.layers.Conv3D(2048, kernel_size=(1, 3, 3),
+inner_model.add(keras.layers.Conv3D(512, kernel_size=(1, 3, 3),
             strides=1, kernel_initializer = "he_normal",
             activation=tf.nn.relu)) # (1, 2, 2)
 inner_model.add(keras.layers.BatchNormalization())
@@ -147,9 +147,9 @@ inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1, 1)
 # Avoid OOM!
 # https://stackoverflow.com/questions/53658501/out-of-memory-oom-error-of-tensorflow-keras-model
 inner_model.add(keras.layers.Flatten())
-inner_model.add(keras.layers.Dense(2048, activation=tf.nn.relu, kernel_initializer = "he_normal",))
-inner_model.add(keras.layers.Dense(256, activation=tf.nn.relu,  kernel_initializer = "he_normal",))
-inner_model.add(keras.layers.Dense(64, activation=keras.activations.sigmoid,  kernel_initializer = "he_normal",))
+inner_model.add(keras.layers.Dense(512, activation=tf.nn.relu, kernel_initializer = "he_normal",))
+inner_model.add(keras.layers.Dense(512, activation=tf.nn.relu,  kernel_initializer = "he_normal",))
+inner_model.add(keras.layers.Dense(512, activation=keras.activations.sigmoid,  kernel_initializer = "he_normal",))
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 
@@ -182,6 +182,10 @@ model = keras.Model([ct_img1, ct_img2], merge_layer)
 # mean_distance for cancers
 def mean_distance(y_true, y_pred):
       return K.mean(y_pred)
+      
+def mean_contradistance(y_true, y_pred):
+    margin_square = lambda1 * K.square(K.maximum(margin - y_pred, 0))
+    return K.sum(y_true * margin_square) / K.sum(y_true)
 
 # Model is ready, let's compile it with quality function and optimizer
 def contrastive_loss(y_true, y_pred):
@@ -194,31 +198,107 @@ def contrastive_loss(y_true, y_pred):
     return K.mean((1 - y_true) * square_pred + y_true * margin_square)
 
 # custom metrics
-def siamese_accuracy_far(y_true, y_pred):
+def siamese_accuracy(y_true, y_pred):
     #https://github.com/tensorflow/tensorflow/issues/23133
     '''Compute classification accuracy with a fixed threshold on distances.
     '''
-    # about Keras backend: https://stackoverflow.com/questions/49950130/logical-and-or-in-keras-backend
-    y_true = K.cast(y_true, 'bool')
-    dist_bool_mask = K.cast(y_pred > threshold, 'bool')
-    tp = K.sum(K.cast(keras.backend.all(keras.backend.stack([y_true, dist_bool_mask], axis=0), axis=0), 'float32'))
-    return tp / K.sum(K.cast(y_true, 'float32'))
+    threshold = mean_distance(y_true, y_pred)
+    return K.mean(K.equal(y_true, K.cast(y_pred > threshold, y_true.dtype)))
 
-def siamese_accuracy_close(y_true, y_pred):
-    #https://github.com/tensorflow/tensorflow/issues/23133
-    '''Compute classification accuracy with a fixed threshold on distances.
-    '''
-    # about Keras backend: https://stackoverflow.com/questions/49950130/logical-and-or-in-keras-backend
-    y_false = K.cast(K.equal(y_true, K.cast(False, y_true.dtype)), 'bool')
-    dist_bool_mask = K.cast(y_pred <= threshold, 'bool')
-    fp = K.sum(K.cast(keras.backend.all(keras.backend.stack([y_false, dist_bool_mask], axis=0), axis=0), 'float32'))
-    return fp / K.sum(K.cast(y_false, 'float32'))
+    
+#https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
+optimizer = keras.optimizers.Adam(lr = learning_rate)
+#optimizer = keras.optimizers.SGD(lr=0.0005, momentum=0.3)
+model.compile(
+    optimizer=optimizer,
+    loss=contrastive_loss,
+    metrics=[mean_distance, mean_contradistance, siamese_accuracy]
+)
 
-def knn_for_nodule(nodule, k, threshold, sigma):
+# check if user wants to preload existing weights
+def preload_weights():
+      global model
+      if (isArgvKeyPresented("-L")):
+            if (model_weights_load_file != None):
+                  exists = os.path.isfile(model_weights_load_file)
+                  if exists:
+
+                        # we should load it with custom objects
+                        # https://github.com/keras-team/keras/issues/5916
+                        model = keras.models.load_model(model_weights_load_file
+                              , custom_objects={'siamese_accuracy': siamese_accuracy,
+                                                'mean_distance': mean_distance,
+                                                'mean_contradistance': mean_contradistance,
+                                                'contrastive_loss': contrastive_loss})
+                        return
+            print("No weights file found specified at '-L' key!", file=os.sys.stderr)
+
+preload_weights()
+
+# creating sequencer
+training_batch_generator = loader.get_training_generator(batch_size)
+
+# saving model is easy
+#https://stackoverflow.com/questions/52553593/tensorflow-keras-model-save-raise-notimplementederror
+def save_weights(epoch, logs):
+      global model
+      exists = os.path.isfile(model_weights_save_file)
+      if exists:
+            print('Overwriting model {}'.format(model_weights_save_file))
+      else:
+            print('Saving model {}'.format(model_weights_save_file))
+
+      model.save(model_weights_save_file)
+      return
+
+
+# functions for final testing (validation)
+def calc_diff_distance(hash_benign, hash_malignant):
+    rho_benign_malignant = np.array([])
+    for hash_benign_nodule in hash_benign:
+        for hash_malignant_nodule in hash_malignant:
+            rho = sqr_distance_layer(
+                        [np.expand_dims(hash_benign_nodule, axis=0),
+                        np.expand_dims(hash_malignant_nodule, axis=0)]
+                        )
+            rho_benign_malignant = np.append(rho_benign_malignant, K.get_value(rho)[0])
+    return rho_benign_malignant
+
+def calc_same_distance(hash):
+    rho_arr = np.array([])
+    for i in range(0, len(hash)):
+        nodule1 = hash[i]
+        mask = np.ones(len(hash), np.bool)
+        mask[i] = 0
+        for nodule2 in hash[mask]:
+            rho = sqr_distance_layer(
+                        [np.expand_dims(nodule1, axis=0),
+                        np.expand_dims(nodule2, axis=0)]
+                        )
+            rho_arr = np.append(rho_arr, K.get_value(rho)[0])
+    return rho_arr
+            
+
+def knn_for_nodule_hash(hash_nodule, hash_benign, hash_malignant, k, threshold, sigma):
     # ввести арбитраж на основе расстояния
     # например, на основе экспонентациальной функции (e^-x)
-    rho_benign = model.predict([np.tile(nodule, (len(loader.data_benign), 1, 1, 1)), loader.data_benign])
-    rho_malignant = model.predict([np.tile(nodule, (len(loader.data_malignant), 1, 1, 1)), loader.data_malignant])
+
+    
+    # Для вычисления расстояния использовать sqr_distance_layer
+    rho_benign = np.array([])
+    rho_malignant = np.array([])
+    for hash_benign_nodule in hash_benign:
+          rho = sqr_distance_layer(
+                  [np.expand_dims(hash_nodule, axis=0),
+                  np.expand_dims(hash_benign_nodule, axis=0)]
+                  )
+          rho_benign = np.append(rho_benign, K.get_value(rho)[0])
+    for hash_malignant_nodule in hash_malignant:
+          rho = sqr_distance_layer(
+                  [np.expand_dims(hash_nodule, axis=0),
+                  np.expand_dims(hash_malignant_nodule, axis=0)]
+                  )
+          rho_malignant = np.append(rho_benign, K.get_value(rho)[0])
 
     # учитывая расстояние threshold, отсекаем и сортируем данные
     rho_benign = np.sort(rho_benign[np.where(rho_benign < threshold)])
@@ -231,7 +311,8 @@ def knn_for_nodule(nodule, k, threshold, sigma):
     # далее, необходимо ввести экспонентациальную зависимость (e^-x) от каждого ближайшего соседа
     # (гауссово распределение)
     # по закону трёх сигм: sigma = threshold / 3. СТОИТ ЛИ ВВОДИТЬ?
-    weighter = np.vectorize(lambda x: np.sign(x)/sigma*np.e ** -(((x/sigma)**2)/2) )
+    #weighter = np.vectorize(lambda x: np.sign(x)/sigma*np.e ** -(((x/sigma)**2)/2) )
+    weighter = np.vectorize(lambda x: x )
 
     rho = np.append(-rho_benign, rho_malignant)
     rho_weights = weighter(rho)
@@ -250,69 +331,62 @@ def knn_for_nodule(nodule, k, threshold, sigma):
     elif (result <= 0):
           return 0 # benign
 
+def knn_check(epoch, logs):
+    inner_model = model.layers[4]
+    # apply inner_model to validation set
+    hash_benign = inner_model.predict([np.expand_dims(loader.data_validation_benign, axis=-1)])
+    hash_malignant = inner_model.predict([np.expand_dims(loader.data_validation_malignant, axis=-1)])
 
-def knn_benign_accuracy(k, threshold, sigma):
-      N = 0
-      t = 0
-      for benign_nodule in loader.data_validation_benign:
-            result = knn_for_nodule(benign_nodule, k, threshold, sigma)
-            N += 1
-            if result == 0:
-                  t += 1
-      return t / N
-
-def knn_malignant_accuracy(k, threshold, sigma):
-      N = 0
-      t = 0
-      for malignant_nodule in loader.data_validation_malignant:
-            result = knn_for_nodule(malignant_nodule, k, threshold, sigma)
-            N += 1
-            if result == 1:
-                  t += 1
-      return t / N
-
+    #calculate accuracies
+    true_benign = 0
+    benign_predictions = np.array([])
+    for i in range(0, len(hash_benign)):
+        nodule = hash_benign[i]
+        mask = np.ones(len(hash_benign), np.bool)
+        mask[i] = 0
+        res = knn_for_nodule_hash(nodule, hash_benign[mask], hash_malignant, k, threshold, sigma)
+        benign_predictions = np.append(benign_predictions, [res])
+        if res == 0:
+                true_benign += 1
+    true_malignant = 0
+    malignant_predictions = np.array([])
+    for i in range(0, len(hash_malignant)):
+        nodule = hash_malignant[i]
+        mask = np.ones(len(hash_benign), np.bool)
+        mask[i] = 0
+        res = knn_for_nodule_hash(nodule, hash_benign, hash_malignant[mask], k, threshold, sigma)
+        malignant_predictions = np.append(malignant_predictions, [res])
+        if res == 1:
+                true_malignant += 1
     
-#https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
-optimizer = keras.optimizers.Adam(lr = learning_rate)
-#optimizer = keras.optimizers.SGD(lr=0.0005, momentum=0.3)
-model.compile(
-    optimizer=optimizer,
-    loss=contrastive_loss,
-    metrics=[mean_distance, siamese_accuracy_far, siamese_accuracy_close]
-)
+    benign_accuracy = true_benign / len(hash_benign)
+    malignant_accuracy = true_malignant / len(hash_malignant)
 
-# check if user wants to preload existing weights
-def preload_weights():
-      global model
-      if (isArgvKeyPresented("-L")):
-            if (model_weights_load_file != None):
-                  exists = os.path.isfile(model_weights_load_file)
-                  if exists:
+    print("Computing knn distance-weighted accuracy on validation set")
+    print("Knn params: k={}, threshold={}, sigma = {}".format(k, threshold, sigma))
+    print("benign_accuracy = {}".format(benign_accuracy))
+    print("malignant_accuracy = {}".format(malignant_accuracy))
+    print("accuracy = {}".format((benign_accuracy + malignant_accuracy)/2))
+    print("")
+    print("Benign prediction array: {}".format(benign_predictions))
+    print("Malignant prediction array: {}".format(malignant_predictions))
 
-                        # we should load it with custom objects
-                        # https://github.com/keras-team/keras/issues/5916
-                        model = keras.models.load_model(model_weights_load_file
-                              , custom_objects={'siamese_accuracy_far': siamese_accuracy_far,
-                                                'siamese_accuracy_close': siamese_accuracy_close,
-                                                'mean_distance': mean_distance,
-                                                'contrastive_loss': contrastive_loss})
-                        return
-            print("No weights file found specified at '-L' key!", file=os.sys.stderr)
 
-preload_weights()
-    
+    dist_diff = calc_diff_distance(hash_benign, hash_malignant)
+    dist_benign = calc_same_distance(hash_benign)
+    dist_malignant = calc_same_distance(hash_malignant)
+    print("Distances    benign-benign.    Min={}, Max={}, Mean={}".format(np.min(dist_benign), np.max(dist_benign), np.mean(dist_benign)))
+    print("Distances    benign-malignant. Min={}, Max={}, Mean={}".format(np.min(dist_diff), np.max(dist_diff), np.mean(dist_diff)))
+    print("Distances malignant-malignant. Min={}, Max={}, Mean={}".format(np.min(dist_malignant), np.max(dist_malignant), np.mean(dist_malignant)))
 
-# forming pairs from validation
-time_start_load = time.time()
-print("Start forming validation tuples at {0:.3f} seconds".format(time_start_load - time_start))
-validation_tuple = loader.form_pairs(validation_pair_count,
-                  loader.data_validation_benign, loader.data_validation_malignant)
-t_end = time.time()
-print("Validation tuples formed at {0:.3f} in {1:.3f} sec.".format(t_end - time_start, t_end - time_start_load))
-print()
 
-# creating sequencer
-training_batch_generator = loader.get_training_generator(batch_size)
+
+
+# creating model checkpoints
+save_callback = keras.callbacks.LambdaCallback(on_epoch_end=save_weights)
+callbacks = [save_callback]
+if knn:
+    callbacks += [keras.callbacks.LambdaCallback(on_epoch_end=knn_check)]
 
 # The model is ready to train!
 if steps_per_epoch <= 0:
@@ -322,29 +396,4 @@ model.fit_generator(generator=training_batch_generator,
       steps_per_epoch = steps_per_epoch,
       verbose=1,
       shuffle=True,
-      validation_data=validation_tuple)
-
-# saving model is easy
-#https://stackoverflow.com/questions/52553593/tensorflow-keras-model-save-raise-notimplementederror
-def save_weights():
-      global model
-      exists = os.path.isfile(model_weights_save_file)
-      if exists:
-            print('Overwriting model {}'.format(model_weights_save_file))
-      else:
-            print('Saving model {}'.format(model_weights_save_file))
-
-      model.save(model_weights_save_file)
-      return
-
-save_weights()
-
-# final testing
-if knn:
-      print("Computing knn distance-weighted accuracy on validation set")
-      print("Knn params: k={}, threshold={}, sigma = {}".format(k, threshold, sigma))
-      benign_accuracy = knn_benign_accuracy(k, threshold, sigma)
-      malignant_accuracy = knn_malignant_accuracy(k, threshold, sigma)
-      print("benign_accuracy = {}".format(benign_accuracy))
-      print("malignant_accuracy = {}".format(malignant_accuracy))
-      print("accuracy = {}".format((benign_accuracy + malignant_accuracy)/2))
+      callbacks = callbacks)
