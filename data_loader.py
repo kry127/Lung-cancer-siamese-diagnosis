@@ -127,9 +127,9 @@ class Loader:
             len(self.validation_malignant), len(self.validation_benign)))
 
         self.data_benign = self.load_train_data(self.train_benign, augment=self.augmentation)
-        self.data_malignant = self.load_train_data(self.train_benign, augment=self.augmentation)
-        self.data_validation_benign = self.load_train_data(self.validation_malignant)
-        self.data_validation_malignant = self.load_train_data(self.validation_benign)
+        self.data_malignant = self.load_train_data(self.train_malignant, augment=self.augmentation)
+        self.data_validation_benign = self.load_train_data(self.validation_benign)
+        self.data_validation_malignant = self.load_train_data(self.validation_malignant)
 
     def get_training_generator(self, batch_size):
         return Pair_Generator(self, batch_size)

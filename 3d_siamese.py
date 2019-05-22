@@ -9,6 +9,9 @@ import data_loader
 from utility import getArgvKeyValue
 from utility import isArgvKeyPresented
 
+from keras.layers import Conv3D, MaxPooling3D, Activation, add
+from keras import regularizers
+
 #starting time count
 time_start = time.time()
 
@@ -50,6 +53,7 @@ threshold = float(getArgvKeyValue("-th", 10)) # distance for both siamese accura
 margin = float(getArgvKeyValue("-m", 1000)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
 
 knn = isArgvKeyPresented("-knn")
+visualisation = isArgvKeyPresented("-vis")
 model_weights_load_file = getArgvKeyValue("-L") # can be none
 model_weights_save_file = getArgvKeyValue("-S", "./lung_cancer_siamese_conv3D.model") # with default value
 
@@ -78,6 +82,7 @@ print ("+-----+-------------------------+---------+")
 print ("|            Other parameters             |")
 print ("+-----+-------------------------+---------+")
 print ("| -knn| Apply knn stage         | {0:<7} |".format(str(knn)))
+print ("| -vis| Make visualisation data | {0:<7} |".format(str(visualisation)))
 print ("| -L  | Model weights load file | {0:<7} |".format(str(model_weights_load_file)))
 print ("| -S  | Model weights save file | {0:<7} |".format(model_weights_save_file))
 print ("+-----+-------------------------+---------+")
@@ -102,64 +107,78 @@ ct_img2_r = keras.layers.Reshape((16,64,64,1))(ct_img2)
 
 #ResNet example: https://github.com/raghakot/keras-resnet/blob/master/resnet.py
 inner_model = keras.models.Sequential()
+inner_model_input = keras.layers.Input(shape=(16,64,64,1))
 
 # here types of model:
 # https://www.quora.com/What-is-the-VGG-neural-network
 # https://medium.com/@sidereal/cnns-architectures-lenet-alexnet-vgg-googlenet-resnet-and-more-666091488df5
 # Try big sizes of kernel : 11-16
+# trying ResNet model
 
-inner_model.add(keras.layers.Conv3D(64, kernel_size=11,
-            activation=tf.nn.relu,
-            strides=1, kernel_initializer = "he_normal",
-            input_shape=(16,64,64,1))) # (6, 54, 54)
-inner_model.add(keras.layers.Conv3D(128, kernel_size=(5, 5, 5),
-            strides=1, kernel_initializer = "he_normal",
-            activation=tf.nn.relu)) # (2, 50, 50)
-inner_model.add(keras.layers.BatchNormalization())
-inner_model.add(keras.layers.Activation("relu"))
-inner_model.add(keras.layers.SpatialDropout3D(0.1))
-inner_model.add(keras.layers.MaxPooling3D(pool_size=(2, 2, 2))) # (1, 25, 25)
+# function for creating an identity residual module
+# function for creating an identity or projection residual module
+def residual_module(layer_in, n_filters):
+	merge_input = layer_in
+	# check if the number of filters needs to be increase, assumes channels last format
+	if layer_in.shape[-1] != n_filters:
+		merge_input = Conv3D(n_filters, (1,1,1), padding='same', activation='relu', kernel_initializer='he_normal')(layer_in)
+	# conv1
+	conv1 = Conv3D(n_filters, (3,3,3), padding='same', activation='relu', kernel_initializer='he_normal')(layer_in)
+	# conv2
+	conv2 = Conv3D(n_filters, (3,3,3), padding='same', activation='linear', kernel_initializer='he_normal')(conv1)
+	# add filters, assumes filters/channels last
+	layer_out = add([conv2, merge_input])
+	# activation function
+	layer_out = Activation('relu')(layer_out)
+	return layer_out
+      
+block1 = residual_module(inner_model_input, 64) # (16, 64, 64)
+block1 = residual_module(block1, 64)
+block1 = residual_module(block1, 64)
+block1 = residual_module(block1, 64)
+block2 = keras.layers.MaxPooling3D(pool_size=(2, 4, 4))(block1) # (8, 16, 16)
+block2 = residual_module(block2, 128)
+block2 = residual_module(block2, 128)
+block2 = residual_module(block2, 128)
+block2 = residual_module(block2, 128)
+block3 = keras.layers.MaxPooling3D(pool_size=(2, 4, 4))(block2) # (4, 4, 4)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block4 = keras.layers.MaxPooling3D(pool_size=2)(block3) # (2, 2, 2)
+block4 = residual_module(block4, 512)
+block4 = residual_module(block4, 512)
+block4 = residual_module(block4, 512)
+block4 = residual_module(block4, 512)
+block4 = residual_module(block4, 512)
+block4 = residual_module(block4, 512)
+block4 = residual_module(block4, 512)
+block4 = residual_module(block4, 512)
+block5 = keras.layers.MaxPooling3D(pool_size=2)(block4) # (1, 1, 1)
 
-
-inner_model.add(keras.layers.Conv3D(256, kernel_size=(1, 6, 6),
-            strides=1, kernel_initializer = "he_normal",
-            activation=tf.nn.relu)) # (1, 20, 20)
-inner_model.add(keras.layers.Conv3D(256, kernel_size=(1, 5, 5),
-            strides=1, kernel_initializer = "he_normal",
-            activation=tf.nn.relu)) # (1, 16, 16)
-inner_model.add(keras.layers.BatchNormalization())
-inner_model.add(keras.layers.Activation("relu"))
-inner_model.add(keras.layers.SpatialDropout3D(0.1))
-inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 8, 8)
-
-inner_model.add(keras.layers.Conv3D(512, kernel_size=(1, 5, 5),
-            strides=1, kernel_initializer = "he_normal",
-            activation=tf.nn.relu)) # (1, 4, 4)
-inner_model.add(keras.layers.Conv3D(512, kernel_size=(1, 3, 3),
-            strides=1, kernel_initializer = "he_normal",
-            activation=tf.nn.relu)) # (1, 2, 2)
-inner_model.add(keras.layers.BatchNormalization())
-inner_model.add(keras.layers.Activation("relu"))
-inner_model.add(keras.layers.SpatialDropout3D(0.1))
-inner_model.add(keras.layers.MaxPooling3D(pool_size=(1, 2, 2))) # (1, 1, 1)
-
-# Then, we should flatten last layer
-# Avoid OOM!
-# https://stackoverflow.com/questions/53658501/out-of-memory-oom-error-of-tensorflow-keras-model
-inner_model.add(keras.layers.Flatten())
-inner_model.add(keras.layers.Dense(512, activation=tf.nn.relu, kernel_initializer = "he_normal",))
-inner_model.add(keras.layers.Dense(512, activation=tf.nn.relu,  kernel_initializer = "he_normal",))
-inner_model.add(keras.layers.Dense(512, activation=keras.activations.sigmoid,  kernel_initializer = "he_normal",))
+fc = keras.layers.Flatten()(block5)
+fc = keras.layers.Dense(1024, activation=tf.nn.relu,
+                  kernel_regularizer=regularizers.l2(0.01),
+                activity_regularizer=regularizers.l1(0.01))(fc)
+fc = keras.layers.Dense(1024, activation=tf.nn.sigmoid,
+                  kernel_regularizer=regularizers.l2(0.01),
+                activity_regularizer=regularizers.l1(0.01))(fc)
+fc = keras.layers.Dense(4, activation='linear',
+                  kernel_regularizer=regularizers.l2(0.01),
+                activity_regularizer=regularizers.l1(0.01))(fc)
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
-
+inner_model = keras.Model(inner_model_input, fc)
 ct_img_model1 = inner_model(ct_img1_r)
 ct_img_model2 = inner_model(ct_img2_r)
 
 def sqr_distance_layer(tensors):
     # https://github.com/tensorflow/tensorflow/issues/12071
     # print (K.sqrt(K.mean(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)))
-    return K.sqrt(K.sum(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True))
+    return K.sum(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)
 
 def difference_layer(tensors):
     # https://github.com/tensorflow/tensorflow/issues/12071
@@ -334,6 +353,8 @@ def knn_for_nodule_hash(hash_nodule, hash_benign, hash_malignant, k, threshold, 
 def knn_check(epoch, logs):
     inner_model = model.layers[4]
     # apply inner_model to validation set
+    #hash_benign = inner_model.predict([np.expand_dims(loader.data_benign, axis=-1)])
+    #hash_malignant = inner_model.predict([np.expand_dims(loader.data_malignant, axis=-1)])
     hash_benign = inner_model.predict([np.expand_dims(loader.data_validation_benign, axis=-1)])
     hash_malignant = inner_model.predict([np.expand_dims(loader.data_validation_malignant, axis=-1)])
 
@@ -379,7 +400,18 @@ def knn_check(epoch, logs):
     print("Distances    benign-malignant. Min={}, Max={}, Mean={}".format(np.min(dist_diff), np.max(dist_diff), np.mean(dist_diff)))
     print("Distances malignant-malignant. Min={}, Max={}, Mean={}".format(np.min(dist_malignant), np.max(dist_malignant), np.mean(dist_malignant)))
 
+def vis(epoch, logs):
+    inner_model = model.layers[4]
+    # apply inner_model to validation set
+    hash_benign = inner_model.predict([np.expand_dims(loader.data_benign, axis=-1)])
+    hash_malignant = inner_model.predict([np.expand_dims(loader.data_malignant, axis=-1)])
 
+    print()
+    print("Visualisation data production stage")
+    print("Hash benign:")
+    print(hash_benign)
+    print("Hash malignant:")
+    print(hash_malignant)
 
 
 # creating model checkpoints
@@ -387,6 +419,8 @@ save_callback = keras.callbacks.LambdaCallback(on_epoch_end=save_weights)
 callbacks = [save_callback]
 if knn:
     callbacks += [keras.callbacks.LambdaCallback(on_epoch_end=knn_check)]
+if visualisation:
+    callbacks += [keras.callbacks.LambdaCallback(on_epoch_end=vis)]
 
 # The model is ready to train!
 if steps_per_epoch <= 0:
