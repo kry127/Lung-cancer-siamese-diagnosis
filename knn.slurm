@@ -4,9 +4,9 @@
 #SBATCH --cpus-per-task=1
 #SBATCH -p tornado-k40
 #SBATCH -t 10-00:00:00
-#SBATCH -J 3d-siamese-training 
-#SBATCH -o log/3d-siamese-training-%j.out
-#SBATCH -e log/3d-siamese-training-%j.err
+#SBATCH -J 3d-siamese-knn
+#SBATCH -o log/3d-siamese-knn-%j.out
+#SBATCH -e log/3d-siamese-knn-%j.err
 
 if [ -f /etc/profile.d/modules-basis.sh ]; then
 source /etc/profile.d/modules-basis.sh 
@@ -17,22 +17,36 @@ source ~/activation
 
 # specify training folder for containing training and validation links
 TRAINING_FOLDER=training-list/6
+BATCHSIZE=32
+EPOCHS=0
+STEPS=0
+LEARNING_RATE=0.000006
+LAMBDA=8
+MARGIN=40
+THRESHOLD=10.0
+
+# create data and algorithm digest
+echo "bs=$BATCHSIZE e=$EPOCHS s=$STEPS lr=$LEARNING_RATE l=$LAMBDA th=$THRESHOLD m=$MARGIN same_benign\
+" >> ./$TRAINING_FOLDER/digest.txt
 
 # run HPC task
 srun python3 3d_siamese.py \
 -F $TRAINING_FOLDER \
--tp 0      \
--vp 0      \
--bs 2      \
--e  0       \
--s  0        \
--lr 0.0000009 \
+-tp -1      \
+-vp 100      \
+-bs $BATCHSIZE      \
+-e  $EPOCHS     \
+-s  $STEPS        \
+-sb           \
+-lr $LEARNING_RATE \
+-aug         \
+-knn        \
+-vis        \
 -k  1        \
--si 3.0     \
--l 1.0    \
--th 4.5      \
--m  15.0        \
--knn              \
+-si 3       \
+-l $LAMBDA    \
+-th $THRESHOLD      \
+-m  $MARGIN     \
 -L "$TRAINING_FOLDER/default.model"
 
 

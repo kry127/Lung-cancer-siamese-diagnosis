@@ -9,7 +9,7 @@ import data_loader
 from utility import getArgvKeyValue
 from utility import isArgvKeyPresented
 
-from keras.layers import Conv3D, MaxPooling3D, Activation, add
+from keras.layers import Conv3D, MaxPooling3D, Activation, ReLU, add
 from keras import regularizers
 
 #starting time count
@@ -106,7 +106,6 @@ ct_img2_r = keras.layers.Reshape((16,64,64,1))(ct_img2)
 # building sequential type of model
 
 #ResNet example: https://github.com/raghakot/keras-resnet/blob/master/resnet.py
-inner_model = keras.models.Sequential()
 inner_model_input = keras.layers.Input(shape=(16,64,64,1))
 
 # here types of model:
@@ -118,52 +117,37 @@ inner_model_input = keras.layers.Input(shape=(16,64,64,1))
 # function for creating an identity residual module
 # function for creating an identity or projection residual module
 def residual_module(layer_in, n_filters):
-	merge_input = layer_in
-	# check if the number of filters needs to be increase, assumes channels last format
-	if layer_in.shape[-1] != n_filters:
-		merge_input = Conv3D(n_filters, (1,1,1), padding='same', activation='relu', kernel_initializer='he_normal')(layer_in)
-	# conv1
-	conv1 = Conv3D(n_filters, (3,3,3), padding='same', activation='relu', kernel_initializer='he_normal')(layer_in)
-	# conv2
-	conv2 = Conv3D(n_filters, (3,3,3), padding='same', activation='linear', kernel_initializer='he_normal')(conv1)
-	# add filters, assumes filters/channels last
-	layer_out = add([conv2, merge_input])
-	# activation function
-	layer_out = Activation('relu')(layer_out)
-	return layer_out
+      merge_input = layer_in
+      # check if the number of filters needs to be increase, assumes channels last format
+      if layer_in.shape[-1] != n_filters:
+            merge_input = Conv3D(n_filters, (1,1,1), padding='same', kernel_initializer='he_normal')(layer_in)
+            merge_input = ReLU(negative_slope=0.1)(merge_input)
+      # conv1
+      conv1 = Conv3D(n_filters, (3,3,3), padding='same', kernel_initializer='he_normal')(layer_in)
+      conv1 = ReLU(negative_slope=0.1)(conv1)
+      # conv2
+      conv2 = Conv3D(n_filters, (3,3,3), padding='same', activation='linear', kernel_initializer='he_normal')(conv1)
+      # add filters, assumes filters/channels last
+      layer_out = add([conv2, merge_input])
+      # activation function
+      layer_out = Activation('relu')(layer_out)
+      return layer_out
       
 block1 = residual_module(inner_model_input, 64) # (16, 64, 64)
 block1 = residual_module(block1, 64)
-block1 = residual_module(block1, 64)
-block1 = residual_module(block1, 64)
 block2 = keras.layers.MaxPooling3D(pool_size=(2, 4, 4))(block1) # (8, 16, 16)
-block2 = residual_module(block2, 128)
-block2 = residual_module(block2, 128)
-block2 = residual_module(block2, 128)
 block2 = residual_module(block2, 128)
 block3 = keras.layers.MaxPooling3D(pool_size=(2, 4, 4))(block2) # (4, 4, 4)
 block3 = residual_module(block3, 256)
-block3 = residual_module(block3, 256)
-block3 = residual_module(block3, 256)
-block3 = residual_module(block3, 256)
-block3 = residual_module(block3, 256)
-block3 = residual_module(block3, 256)
 block4 = keras.layers.MaxPooling3D(pool_size=2)(block3) # (2, 2, 2)
-block4 = residual_module(block4, 512)
-block4 = residual_module(block4, 512)
-block4 = residual_module(block4, 512)
-block4 = residual_module(block4, 512)
-block4 = residual_module(block4, 512)
-block4 = residual_module(block4, 512)
-block4 = residual_module(block4, 512)
 block4 = residual_module(block4, 512)
 block5 = keras.layers.MaxPooling3D(pool_size=2)(block4) # (1, 1, 1)
 
 fc = keras.layers.Flatten()(block5)
-fc = keras.layers.Dense(1024, activation=tf.nn.relu,
+fc = keras.layers.Dense(512, activation=tf.nn.relu,
                   kernel_regularizer=regularizers.l2(0.01),
                 activity_regularizer=regularizers.l1(0.01))(fc)
-fc = keras.layers.Dense(1024, activation=tf.nn.sigmoid,
+fc = keras.layers.Dense(512, activation=tf.nn.sigmoid,
                   kernel_regularizer=regularizers.l2(0.01),
                 activity_regularizer=regularizers.l1(0.01))(fc)
 fc = keras.layers.Dense(4, activation='linear',
@@ -219,10 +203,10 @@ def contrastive_loss(y_true, y_pred):
 # custom metrics
 def siamese_accuracy(y_true, y_pred):
     #https://github.com/tensorflow/tensorflow/issues/23133
-    '''Compute classification accuracy with a fixed threshold on distances.
+    '''Compute classification accuracy with a dynamic threshold on distances.
     '''
-    threshold = mean_distance(y_true, y_pred)
-    return K.mean(K.equal(y_true, K.cast(y_pred > threshold, y_true.dtype)))
+    m = mean_distance(y_true, y_pred)
+    return K.mean(K.equal(y_true, K.cast(y_pred > m, y_true.dtype)))
 
     
 #https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
@@ -301,8 +285,6 @@ def calc_same_distance(hash):
 def knn_for_nodule_hash(hash_nodule, hash_benign, hash_malignant, k, threshold, sigma):
     # ввести арбитраж на основе расстояния
     # например, на основе экспонентациальной функции (e^-x)
-
-    
     # Для вычисления расстояния использовать sqr_distance_layer
     rho_benign = np.array([])
     rho_malignant = np.array([])
@@ -324,14 +306,14 @@ def knn_for_nodule_hash(hash_nodule, hash_benign, hash_malignant, k, threshold, 
     rho_malignant = np.sort(rho_malignant[np.where(rho_malignant < threshold)])
 
     # insufficient amount of neigbours
-    if (len(rho_benign) + len(rho_malignant) < k):
+    if (len(rho_benign) + len(rho_malignant) < 1):
       return None
 
     # далее, необходимо ввести экспонентациальную зависимость (e^-x) от каждого ближайшего соседа
     # (гауссово распределение)
     # по закону трёх сигм: sigma = threshold / 3. СТОИТ ЛИ ВВОДИТЬ?
-    #weighter = np.vectorize(lambda x: np.sign(x)/sigma*np.e ** -(((x/sigma)**2)/2) )
-    weighter = np.vectorize(lambda x: x )
+    weighter = np.vectorize(lambda x: np.sign(x)/sigma*np.e ** -(((x/sigma)**2)/2) )
+    #weighter = np.vectorize(lambda x: x )
 
     rho = np.append(-rho_benign, rho_malignant)
     rho_weights = weighter(rho)
@@ -350,38 +332,53 @@ def knn_for_nodule_hash(hash_nodule, hash_benign, hash_malignant, k, threshold, 
     elif (result <= 0):
           return 0 # benign
 
-def knn_check(epoch, logs):
+def end_checks(epoch = None, logs = None):
+    if not knn and not visualisation:
+        return
+    # common data for final checks
     inner_model = model.layers[4]
     # apply inner_model to validation set
-    #hash_benign = inner_model.predict([np.expand_dims(loader.data_benign, axis=-1)])
-    #hash_malignant = inner_model.predict([np.expand_dims(loader.data_malignant, axis=-1)])
-    hash_benign = inner_model.predict([np.expand_dims(loader.data_validation_benign, axis=-1)])
-    hash_malignant = inner_model.predict([np.expand_dims(loader.data_validation_malignant, axis=-1)])
+    global train_hash_benign
+    global train_hash_malignant
+    global validation_hash_benign
+    global validation_hash_malignant
+    
+    train_hash_benign = inner_model.predict([np.expand_dims(loader.data_benign, axis=-1)])
+    train_hash_malignant = inner_model.predict([np.expand_dims(loader.data_malignant, axis=-1)])
+    validation_hash_benign = inner_model.predict([np.expand_dims(loader.data_validation_benign, axis=-1)])
+    validation_hash_malignant = inner_model.predict([np.expand_dims(loader.data_validation_malignant, axis=-1)])
+    if knn:
+        knn_check()
+    if visualisation:
+        vis()
 
+def knn_check():
     #calculate accuracies
     true_benign = 0
     benign_predictions = np.array([])
-    for i in range(0, len(hash_benign)):
-        nodule = hash_benign[i]
-        mask = np.ones(len(hash_benign), np.bool)
-        mask[i] = 0
-        res = knn_for_nodule_hash(nodule, hash_benign[mask], hash_malignant, k, threshold, sigma)
+    for i in range(0, len(validation_hash_benign)):
+        nodule = validation_hash_benign[i]
+        #mask = np.ones(len(validation_hash_benign), np.bool)
+        #mask[i] = 0
+        #res = knn_for_nodule_hash(nodule, validation_hash_benign[mask], validation_hash_malignant, k, threshold, sigma)
+        res = knn_for_nodule_hash(nodule, train_hash_benign, train_hash_malignant, k, threshold, sigma)
         benign_predictions = np.append(benign_predictions, [res])
         if res == 0:
                 true_benign += 1
     true_malignant = 0
     malignant_predictions = np.array([])
-    for i in range(0, len(hash_malignant)):
-        nodule = hash_malignant[i]
-        mask = np.ones(len(hash_benign), np.bool)
-        mask[i] = 0
-        res = knn_for_nodule_hash(nodule, hash_benign, hash_malignant[mask], k, threshold, sigma)
+    for i in range(0, len(validation_hash_malignant)):
+        nodule = validation_hash_malignant[i]
+        #mask = np.ones(len(validation_hash_benign), np.bool)
+        #mask[i] = 0
+        #res = knn_for_nodule_hash(nodule, validation_hash_benign, validation_hash_malignant[mask], k, threshold, sigma)
+        res = knn_for_nodule_hash(nodule, train_hash_benign, train_hash_malignant, k, threshold, sigma)
         malignant_predictions = np.append(malignant_predictions, [res])
         if res == 1:
                 true_malignant += 1
     
-    benign_accuracy = true_benign / len(hash_benign)
-    malignant_accuracy = true_malignant / len(hash_malignant)
+    benign_accuracy = true_benign / len(validation_hash_benign)
+    malignant_accuracy = true_malignant / len(validation_hash_malignant)
 
     print("Computing knn distance-weighted accuracy on validation set")
     print("Knn params: k={}, threshold={}, sigma = {}".format(k, threshold, sigma))
@@ -393,38 +390,41 @@ def knn_check(epoch, logs):
     print("Malignant prediction array: {}".format(malignant_predictions))
 
 
-    dist_diff = calc_diff_distance(hash_benign, hash_malignant)
-    dist_benign = calc_same_distance(hash_benign)
-    dist_malignant = calc_same_distance(hash_malignant)
+    dist_diff = calc_diff_distance(validation_hash_benign, validation_hash_malignant)
+    dist_benign = calc_same_distance(validation_hash_benign)
+    dist_malignant = calc_same_distance(validation_hash_malignant)
     print("Distances    benign-benign.    Min={}, Max={}, Mean={}".format(np.min(dist_benign), np.max(dist_benign), np.mean(dist_benign)))
     print("Distances    benign-malignant. Min={}, Max={}, Mean={}".format(np.min(dist_diff), np.max(dist_diff), np.mean(dist_diff)))
     print("Distances malignant-malignant. Min={}, Max={}, Mean={}".format(np.min(dist_malignant), np.max(dist_malignant), np.mean(dist_malignant)))
 
-def vis(epoch, logs):
+def vis():
     inner_model = model.layers[4]
     # apply inner_model to validation set
-    hash_benign = inner_model.predict([np.expand_dims(loader.data_benign, axis=-1)])
-    hash_malignant = inner_model.predict([np.expand_dims(loader.data_malignant, axis=-1)])
 
     print()
     print("Visualisation data production stage")
-    print("Hash benign:")
-    print(hash_benign)
-    print("Hash malignant:")
-    print(hash_malignant)
+    print("Training hash benign:")
+    print(train_hash_benign)
+    print("Training hash malignant:")
+    print(train_hash_malignant)
+    print("Validation hash benign:")
+    print(validation_hash_benign)
+    print("Validation hash malignant:")
+    print(validation_hash_malignant)
 
 
 # creating model checkpoints
 save_callback = keras.callbacks.LambdaCallback(on_epoch_end=save_weights)
-callbacks = [save_callback]
-if knn:
-    callbacks += [keras.callbacks.LambdaCallback(on_epoch_end=knn_check)]
-if visualisation:
-    callbacks += [keras.callbacks.LambdaCallback(on_epoch_end=vis)]
+end_checks_callback = keras.callbacks.LambdaCallback(on_epoch_end=end_checks)
+callbacks = [save_callback, end_checks_callback]
 
 # The model is ready to train!
 if steps_per_epoch <= 0:
       steps_per_epoch = None
+      if epochs_all <= 0:
+          # no actual training, launch knn and vis if needed
+          end_checks()
+
 model.fit_generator(generator=training_batch_generator,
       epochs=epochs_all,
       steps_per_epoch = steps_per_epoch,

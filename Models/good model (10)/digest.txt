@@ -1,0 +1,10 @@
+bs=32 e=5 s=-1 lr=0.000009 l=0.25 th=10.0 m=80 same_benign
+bs=32 e=50 s=10 lr=0.000006 l=8 th=10.0 m=40 same_benign
+bs=32 e=1 s=1 lr=0.000006 l=8 th=10.0 m=40 same_benign
+bs=32 e=1 s=1 lr=0.000006 l=8 th=10.0 m=40 same_benign
+bs=32 e=0 s=0 lr=0.000006 l=8 th=10.0 m=40 same_benign
+bs=32 e=0 s=0 lr=0.000006 l=8 th=10.0 m=40 same_benign
+bs=32 e=0 s=0 lr=0.000006 l=8 th=10.0 m=40 same_benign
+bs=32 e=0 s=0 lr=0.000006 l=8 th=10.0 m=40 same_benign
+bs=32 e=0 s=0 lr=0.000006 l=8 th=10.0 m=40 same_benign
+bs=32 e=0 s=0 lr=0.000006 l=8 th=10.0 m=40 same_benign

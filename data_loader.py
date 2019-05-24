@@ -27,6 +27,7 @@ class Pair_Generator(Sequence):
 
         len_diff = len(self.index_diff)
         len_same = len(self.index_same)
+        print("Generator. len_diff={}, len_same={}".format(len_diff, len_same))
         if (len_diff > len_same):
             self.index_same = np.tile(self.index_same, int(np.ceil(len_diff / len_same)))
             self.index_same = self.index_same[:len_diff]
