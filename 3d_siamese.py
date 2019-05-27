@@ -502,7 +502,7 @@ end_checks_callback = keras.callbacks.LambdaCallback(on_epoch_end=end_checks)
 callbacks = [save_callback, end_checks_callback,
       keras.callbacks.TerminateOnNaN(),
       keras.callbacks.ReduceLROnPlateau(monitor='loss',
-            factor=0.5, patience=10, mode='min', min_lr=0.0000000001)
+            factor=0.5, patience=10, mode='min', cooldown=50, min_lr=0.00000001)
 ]
 
 # The model is ready to train!
