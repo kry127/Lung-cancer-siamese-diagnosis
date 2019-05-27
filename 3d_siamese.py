@@ -210,15 +210,10 @@ block6 = residual_module(block6, 512)
 flatten = keras.layers.MaxPooling3D(pool_size=(1, 2, 2))(block6) # (1, 1, 1)
 
 fc = keras.layers.Flatten()(flatten)
-fc = keras.layers.Dense(512, activation=tf.nn.relu,
-                  kernel_regularizer=regularizers.l2(0.001),
-                    bias_regularizer=regularizers.l1(0.001))(fc)
-fc = keras.layers.Dense(512, activation=tf.nn.sigmoid,
-                  kernel_regularizer=regularizers.l2(0.001),
-                    bias_regularizer=regularizers.l1(0.001))(fc)
-fc = keras.layers.Dense(2, activation='linear',
-                  kernel_regularizer=regularizers.l2(0.001),
-                    bias_regularizer=regularizers.l1(0.001))(fc)
+fc = keras.layers.Dense(512, kernel_initializer='he_normal')(fc)
+fc = ReLU(negative_slope=0.1)(fc)
+fc = keras.layers.Dense(512, kernel_initializer='he_normal', activation=tf.nn.sigmoid)(fc)
+fc = keras.layers.Dense(2  , kernel_initializer='he_normal', activation='linear')(fc)
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 inner_model = keras.Model(inner_model_input, fc)
