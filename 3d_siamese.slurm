@@ -16,11 +16,11 @@ module purge
 source ~/activation
 
 # specify training folder for containing training and validation links
-TRAINING_FOLDER=training-list/6
-BATCHSIZE=32
-EPOCHS=11
+TRAINING_FOLDER=training-list/10
+BATCHSIZE=8
+EPOCHS=8
 STEPS=-1
-LEARNING_RATE=0.000006
+LEARNING_RATE=0.000003
 LAMBDA=8
 MARGIN=40
 THRESHOLD=10.0
@@ -40,11 +40,13 @@ srun python3 3d_siamese.py \
 -sb           \
 -lr $LEARNING_RATE \
 -aug         \
+-vis        \
 -k  1        \
 -si 3       \
 -l $LAMBDA    \
 -th $THRESHOLD      \
 -m  $MARGIN     \
+-V "$TRAINING_FOLDER/visual" \
 -L "$TRAINING_FOLDER/default.model" \
 -S "$TRAINING_FOLDER/default.model"
 

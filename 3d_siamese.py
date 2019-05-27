@@ -1,6 +1,7 @@
 import keras
 import tensorflow as tf
 from keras import backend as K
+import re
 import os
 import numpy as np
 import time
@@ -11,6 +12,10 @@ from utility import isArgvKeyPresented
 
 from keras.layers import Conv3D, MaxPooling3D, Activation, ReLU, add
 from keras import regularizers
+
+vis_regexp = 'vis_(\d\d\d\d).npy'
+vis_filename = "vis_{:04d}.npy"
+visualisation_index = 0
 
 #starting time count
 time_start = time.time()
@@ -54,6 +59,7 @@ margin = float(getArgvKeyValue("-m", 1000)) # margin defines how strong dissimil
 
 knn = isArgvKeyPresented("-knn")
 visualisation = isArgvKeyPresented("-vis")
+visualisation_folder = getArgvKeyValue("-V")
 model_weights_load_file = getArgvKeyValue("-L") # can be none
 model_weights_save_file = getArgvKeyValue("-S", "./lung_cancer_siamese_conv3D.model") # with default value
 
@@ -83,10 +89,37 @@ print ("|            Other parameters             |")
 print ("+-----+-------------------------+---------+")
 print ("| -knn| Apply knn stage         | {0:<7} |".format(str(knn)))
 print ("| -vis| Make visualisation data | {0:<7} |".format(str(visualisation)))
+print ("| -V  | Visualisation folder    | {0:<7} |".format(str(visualisation_folder)))
 print ("| -L  | Model weights load file | {0:<7} |".format(str(model_weights_load_file)))
 print ("| -S  | Model weights save file | {0:<7} |".format(model_weights_save_file))
 print ("+-----+-------------------------+---------+")
 print("\n", flush = True)
+
+# param preprocessing
+
+    
+if (isArgvKeyPresented("-V")):
+    if (visualisation_folder != None):
+        exists = os.path.exists(visualisation_folder)
+        if not exists:
+            try:
+                os.makedirs(visualisation_folder)
+            except OSError:
+                print("Cannot create visualisation folder", file=os.sys.stderr)
+                visualisation_folder = None
+            
+        exists = os.path.exists(visualisation_folder)
+        if exists:
+            vis_regexp = re.compile(vis_regexp)
+            filelist = os.listdir(visualisation_folder)
+            vislist = filter(lambda s: vis_regexp.match(s) != None, filelist)
+            visnum = list(map(lambda s: int(vis_regexp.match(s).group(1)), vislist))
+            if (len(visnum) > 0):
+                visualisation_index = max(visnum) + 1
+            print("Current visualisation index = {}".format(visualisation_index))
+        
+    else:
+        print("No path specified at -V key", file=os.sys.stderr)
 
 # init loader class
 loader = data_loader.Loader(training_folder, ct_folder, same_benign, augmentation)
@@ -130,29 +163,62 @@ def residual_module(layer_in, n_filters):
       # add filters, assumes filters/channels last
       layer_out = add([conv2, merge_input])
       # activation function
-      layer_out = Activation('relu')(layer_out)
+      layer_out = ReLU(negative_slope=0.1)(layer_out)
       return layer_out
       
-block1 = residual_module(inner_model_input, 64) # (16, 64, 64)
-block1 = residual_module(block1, 64)
-block2 = keras.layers.MaxPooling3D(pool_size=(2, 4, 4))(block1) # (8, 16, 16)
-block2 = residual_module(block2, 128)
-block3 = keras.layers.MaxPooling3D(pool_size=(2, 4, 4))(block2) # (4, 4, 4)
-block3 = residual_module(block3, 256)
-block4 = keras.layers.MaxPooling3D(pool_size=2)(block3) # (2, 2, 2)
-block4 = residual_module(block4, 512)
-block5 = keras.layers.MaxPooling3D(pool_size=2)(block4) # (1, 1, 1)
+block1 = residual_module(inner_model_input, 16) # (16, 64, 64)
+block1 = residual_module(block1, 16)
+block1 = residual_module(block1, 16)
+block1 = residual_module(block1, 16)
+block1 = residual_module(block1, 16)
+block1 = residual_module(block1, 16)
+block1 = residual_module(block1, 16)
+block1 = residual_module(block1, 16)
+block2 = keras.layers.MaxPooling3D(pool_size=2)(block1) # (8, 32, 32)
+block2 = residual_module(block2, 32)
+block2 = residual_module(block2, 32)
+block2 = residual_module(block2, 32)
+block2 = residual_module(block2, 32)
+block2 = residual_module(block2, 32)
+block2 = residual_module(block2, 32)
+block2 = residual_module(block2, 32)
+block2 = residual_module(block2, 32)
+block3 = keras.layers.MaxPooling3D(pool_size=2)(block2) # (4, 16, 16)
+block3 = residual_module(block3, 64)
+block3 = residual_module(block3, 64)
+block3 = residual_module(block3, 64)
+block3 = residual_module(block3, 64)
+block3 = residual_module(block3, 64)
+block3 = residual_module(block3, 64)
+block4 = keras.layers.MaxPooling3D(pool_size=2)(block3) # (2, 8, 8)
+block4 = residual_module(block4, 128)
+block4 = residual_module(block4, 128)
+block4 = residual_module(block4, 128)
+block4 = residual_module(block4, 128)
+block4 = residual_module(block4, 128)
+block4 = residual_module(block4, 128)
+block5 = keras.layers.MaxPooling3D(pool_size=2)(block4) # (1, 4, 4)
+block5 = residual_module(block5, 256)
+block5 = residual_module(block5, 256)
+block5 = residual_module(block5, 256)
+block5 = residual_module(block5, 256)
+block6 = keras.layers.MaxPooling3D(pool_size=(1, 2, 2))(block5) # (1, 2, 2)
+block6 = residual_module(block6, 512)
+block6 = residual_module(block6, 512)
+block6 = residual_module(block6, 512)
+block6 = residual_module(block6, 512)
+flatten = keras.layers.MaxPooling3D(pool_size=(1, 2, 2))(block6) # (1, 1, 1)
 
-fc = keras.layers.Flatten()(block5)
+fc = keras.layers.Flatten()(flatten)
 fc = keras.layers.Dense(512, activation=tf.nn.relu,
-                  kernel_regularizer=regularizers.l2(0.01),
-                activity_regularizer=regularizers.l1(0.01))(fc)
+                  kernel_regularizer=regularizers.l2(0.001),
+                    bias_regularizer=regularizers.l1(0.001))(fc)
 fc = keras.layers.Dense(512, activation=tf.nn.sigmoid,
-                  kernel_regularizer=regularizers.l2(0.01),
-                activity_regularizer=regularizers.l1(0.01))(fc)
-fc = keras.layers.Dense(4, activation='linear',
-                  kernel_regularizer=regularizers.l2(0.01),
-                activity_regularizer=regularizers.l1(0.01))(fc)
+                  kernel_regularizer=regularizers.l2(0.001),
+                    bias_regularizer=regularizers.l1(0.001))(fc)
+fc = keras.layers.Dense(2, activation='linear',
+                  kernel_regularizer=regularizers.l2(0.001),
+                    bias_regularizer=regularizers.l1(0.001))(fc)
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 inner_model = keras.Model(inner_model_input, fc)
@@ -398,8 +464,11 @@ def knn_check():
     print("Distances malignant-malignant. Min={}, Max={}, Mean={}".format(np.min(dist_malignant), np.max(dist_malignant), np.mean(dist_malignant)))
 
 def vis():
+    global visualisation_index
+    
     inner_model = model.layers[4]
     # apply inner_model to validation set
+    
 
     print()
     print("Visualisation data production stage")
@@ -412,11 +481,29 @@ def vis():
     print("Validation hash malignant:")
     print(validation_hash_malignant)
 
+    hash_type = 0 # train benign
+    hashes = np.insert(train_hash_benign, 0, hash_type, axis=1)
+    hash_type = 1 # train malignant
+    hashes = np.append(hashes, np.insert(train_hash_malignant, 0, hash_type, axis=1), axis=0)
+    hash_type = 2 # validation benign
+    hashes = np.append(hashes, np.insert(validation_hash_benign, 0, hash_type, axis=1), axis=0)
+    hash_type = 3 # validation malignant
+    hashes = np.append(hashes, np.insert(validation_hash_malignant, 0, hash_type, axis=1), axis=0)
+
+    if visualisation_folder != None:
+        filepath = os.path.join(visualisation_folder, vis_filename.format(visualisation_index))
+        np.savetxt(filepath, hashes)
+        visualisation_index += 1
+
 
 # creating model checkpoints
 save_callback = keras.callbacks.LambdaCallback(on_epoch_end=save_weights)
 end_checks_callback = keras.callbacks.LambdaCallback(on_epoch_end=end_checks)
-callbacks = [save_callback, end_checks_callback]
+callbacks = [save_callback, end_checks_callback,
+      keras.callbacks.TerminateOnNaN(),
+      keras.callbacks.ReduceLROnPlateau(monitor='loss',
+            factor=0.5, patience=10, mode='min', min_lr=0.0000000001)
+]
 
 # The model is ready to train!
 if steps_per_epoch <= 0:

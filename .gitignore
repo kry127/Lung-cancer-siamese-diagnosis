@@ -1,8 +1,10 @@
 .*/
 all2/
 cancer/
+Models/
 *.png
 *.rar
 *.model
 *.out
 *.err
+*.mp4
