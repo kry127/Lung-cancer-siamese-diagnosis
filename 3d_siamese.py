@@ -49,6 +49,9 @@ batch_size = int(getArgvKeyValue("-bs", 100)) # how many pairs form loss functio
 epochs_all = int(getArgvKeyValue("-e", 300)) # global epochs (with pair change)
 steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
 learning_rate = float(getArgvKeyValue("-lr", 0.000006))
+learning_rate_reduce_factor = getArgvKeyValue("-rf")
+if learning_rate_reduce_factor is not None:
+      learning_rate_reduce_factor = float(learning_rate_reduce_factor)
 augmentation = isArgvKeyPresented("-aug")
 
 k = int(getArgvKeyValue("-k", 5)) # knn parameter -- pick k = 5 nearest neibourgs
@@ -77,6 +80,7 @@ print ("| -bs | Batch size              | {0:<7} |".format(batch_size))
 print ("| -e  | Epochs all              | {0:<7} |".format(epochs_all))
 print ("| -s  | Steps per epoch         | {0:<7} |".format(steps_per_epoch))
 print ("| -lr | Learing rate            | {0:<7} |".format(learning_rate))
+print ("| -rf | LR (-lr) recude factor  | {0:<7} |".format(str(learning_rate_reduce_factor)))
 print ("| -aug| Augmentation            | {0:<7} |".format(str(augmentation)))
 print ("+-----+-------------------------+---------+")
 print ("| -k  | k                       | {0:<7} |".format(k))
@@ -147,6 +151,8 @@ inner_model_input = keras.layers.Input(shape=(16,64,64,1))
 # Try big sizes of kernel : 11-16
 # trying ResNet model
 
+uni_init = keras.initializers.RandomUniform(minval=-1, maxval=1, seed=None)
+
 # function for creating an identity residual module
 # function for creating an identity or projection residual module
 def residual_module(layer_in, n_filters):
@@ -210,20 +216,25 @@ block6 = residual_module(block6, 512)
 flatten = keras.layers.MaxPooling3D(pool_size=(1, 2, 2))(block6) # (1, 1, 1)
 
 fc = keras.layers.Flatten()(flatten)
-fc = keras.layers.Dense(512, kernel_initializer='he_normal')(fc)
+fc = keras.layers.Dense(512, kernel_initializer=uni_init)(fc)
 fc = ReLU(negative_slope=0.1)(fc)
-fc = keras.layers.Dense(512, kernel_initializer='he_normal', activation=tf.nn.sigmoid)(fc)
-fc = keras.layers.Dense(2  , kernel_initializer='he_normal', activation='linear')(fc)
+fc = keras.layers.Dense(512, kernel_initializer=uni_init, activation=tf.nn.sigmoid)(fc)
+fc = keras.layers.Dense(3  , kernel_initializer=uni_init, activation='linear')(fc)
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 inner_model = keras.Model(inner_model_input, fc)
 ct_img_model1 = inner_model(ct_img1_r)
 ct_img_model2 = inner_model(ct_img2_r)
 
+# for training
 def sqr_distance_layer(tensors):
     # https://github.com/tensorflow/tensorflow/issues/12071
     # print (K.sqrt(K.mean(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)))
     return K.sum(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)
+
+# for knn
+def distance_layer(tensors):
+    return K.sqrt(K.sum(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True))
 
 def difference_layer(tensors):
     # https://github.com/tensorflow/tensorflow/issues/12071
@@ -271,8 +282,8 @@ def siamese_accuracy(y_true, y_pred):
 
     
 #https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
-optimizer = keras.optimizers.Adam(lr = learning_rate)
-#optimizer = keras.optimizers.SGD(lr=0.0005, momentum=0.3)
+#optimizer = keras.optimizers.Adam(lr = learning_rate)
+optimizer = keras.optimizers.SGD(lr=learning_rate, momentum=0.3)
 model.compile(
     optimizer=optimizer,
     loss=contrastive_loss,
@@ -321,7 +332,7 @@ def calc_diff_distance(hash_benign, hash_malignant):
     rho_benign_malignant = np.array([])
     for hash_benign_nodule in hash_benign:
         for hash_malignant_nodule in hash_malignant:
-            rho = sqr_distance_layer(
+            rho = distance_layer(
                         [np.expand_dims(hash_benign_nodule, axis=0),
                         np.expand_dims(hash_malignant_nodule, axis=0)]
                         )
@@ -335,7 +346,7 @@ def calc_same_distance(hash):
         mask = np.ones(len(hash), np.bool)
         mask[i] = 0
         for nodule2 in hash[mask]:
-            rho = sqr_distance_layer(
+            rho = distance_layer(
                         [np.expand_dims(nodule1, axis=0),
                         np.expand_dims(nodule2, axis=0)]
                         )
@@ -350,17 +361,17 @@ def knn_for_nodule_hash(hash_nodule, hash_benign, hash_malignant, k, threshold, 
     rho_benign = np.array([])
     rho_malignant = np.array([])
     for hash_benign_nodule in hash_benign:
-          rho = sqr_distance_layer(
+          rho = distance_layer(
                   [np.expand_dims(hash_nodule, axis=0),
                   np.expand_dims(hash_benign_nodule, axis=0)]
                   )
           rho_benign = np.append(rho_benign, K.get_value(rho)[0])
     for hash_malignant_nodule in hash_malignant:
-          rho = sqr_distance_layer(
+          rho = distance_layer(
                   [np.expand_dims(hash_nodule, axis=0),
                   np.expand_dims(hash_malignant_nodule, axis=0)]
                   )
-          rho_malignant = np.append(rho_benign, K.get_value(rho)[0])
+          rho_malignant = np.append(rho_malignant, K.get_value(rho)[0])
 
     # учитывая расстояние threshold, отсекаем и сортируем данные
     rho_benign = np.sort(rho_benign[np.where(rho_benign < threshold)])
@@ -467,14 +478,6 @@ def vis():
 
     print()
     print("Visualisation data production stage")
-    print("Training hash benign:")
-    print(train_hash_benign)
-    print("Training hash malignant:")
-    print(train_hash_malignant)
-    print("Validation hash benign:")
-    print(validation_hash_benign)
-    print("Validation hash malignant:")
-    print(validation_hash_malignant)
 
     hash_type = 0 # train benign
     hashes = np.insert(train_hash_benign, 0, hash_type, axis=1)
@@ -496,9 +499,12 @@ save_callback = keras.callbacks.LambdaCallback(on_epoch_end=save_weights)
 end_checks_callback = keras.callbacks.LambdaCallback(on_epoch_end=end_checks)
 callbacks = [save_callback, end_checks_callback,
       keras.callbacks.TerminateOnNaN(),
-      keras.callbacks.ReduceLROnPlateau(monitor='loss',
-            factor=0.5, patience=10, mode='min', cooldown=50, min_lr=0.00000001)
 ]
+
+if learning_rate_reduce_factor != None:
+      callbacks += [keras.callbacks.ReduceLROnPlateau(monitor='loss',
+            factor=learning_rate_reduce_factor, verbose=1,
+            patience=10, mode='min', cooldown=50, min_lr=0.00000001)]
 
 # The model is ready to train!
 if steps_per_epoch <= 0:

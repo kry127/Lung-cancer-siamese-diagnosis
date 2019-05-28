@@ -18,10 +18,10 @@ source ~/activation
 # specify training folder for containing training and validation links
 TRAINING_FOLDER=training-list/10
 BATCHSIZE=8
-EPOCHS=8
+EPOCHS=5
 STEPS=-1
-LEARNING_RATE=0.000003
-LAMBDA=8
+LEARNING_RATE=0.12
+LAMBDA=24
 MARGIN=40
 THRESHOLD=10.0
 
