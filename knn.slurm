@@ -16,7 +16,7 @@ module purge
 source ~/activation
 
 # specify training folder for containing training and validation links
-TRAINING_FOLDER=training-list/10
+TRAINING_FOLDER=training-list/6
 BATCHSIZE=32
 EPOCHS=0
 STEPS=0
