@@ -8,7 +8,8 @@ import time
 import utility
 import data_loader
 from utility import getArgvKeyValue, isArgvKeyPresented
-from models_src.model_simple import model, distance_layer
+from models_src.model_simple import model
+from models_src.custom_layers import distance_layer
 
 vis_regexp = 'vis_(\d\d\d\d).npy'
 vis_filename = "vis_{:04d}.npy"

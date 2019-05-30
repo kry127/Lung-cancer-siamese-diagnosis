@@ -4,6 +4,8 @@ from keras import backend as K
 from keras.layers import Conv3D, SpatialDropout3D, MaxPooling3D, Dropout, Flatten, Dense, ReLU
 from keras import regularizers
 
+from custom_layers import sqr_distance_layer
+
 # Making siamese network for nodules comparison
 
 # More info about Keras Layers: https://keras.io/layers/core/, https://keras.io/layers/convolutional/
@@ -57,19 +59,6 @@ inner_model.add(Dense(256, activation='linear'))
 
 ct_img_model1 = inner_model(ct_img1_r)
 ct_img_model2 = inner_model(ct_img2_r)
-
-# for training
-def sqr_distance_layer(tensors):
-    return K.sum(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)
-
-# for knn
-def distance_layer(tensors):
-    return K.sqrt(K.sum(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True))
-
-def difference_layer(tensors):
-    # https://github.com/tensorflow/tensorflow/issues/12071
-    # print (K.sqrt(K.mean(K.square(tensors[0] - tensors[1]), axis=1, keepdims = True)))
-    return K.abs(tensors[0] - tensors[1])
 
 merge_layer_lambda = keras.layers.Lambda(sqr_distance_layer)
 merge_layer = merge_layer_lambda([ct_img_model1, ct_img_model2])
