@@ -3,7 +3,7 @@ import keras
 from keras.layers import Conv3D, MaxPooling3D, Activation, ReLU, add
 from keras import regularizers
 
-from custom_layers import sqr_distance_layer
+from models_src.custom_layers import sqr_distance_layer
 
 # Making siamese network for nodules comparison
 

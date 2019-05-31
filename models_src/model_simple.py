@@ -4,7 +4,7 @@ from keras import backend as K
 from keras.layers import Conv3D, SpatialDropout3D, MaxPooling3D, Dropout, Flatten, Dense, ReLU
 from keras import regularizers
 
-from custom_layers import sqr_distance_layer
+from models_src.custom_layers import sqr_distance_layer
 
 # Making siamese network for nodules comparison
 
@@ -20,7 +20,7 @@ ct_img1_r = keras.layers.Reshape((16,64,64,1))(ct_img1)
 ct_img2_r = keras.layers.Reshape((16,64,64,1))(ct_img2)
 
 # initializer for last weights
-uni_init = keras.initializers.RandomUniform(minval=-1, maxval=1, seed=None)
+uni_init = keras.initializers.RandomUniform(minval=-0.1, maxval=0.1, seed=None)
 
 # building sequential type of model
 inner_model = keras.models.Sequential()
@@ -50,10 +50,9 @@ inner_model.add(Flatten())
 inner_model.add(Dense(4096, kernel_initializer=uni_init))
 inner_model.add(ReLU(negative_slope=0.1))
 inner_model.add(Dropout(0.1))
-inner_model.add(Dense(1024, kernel_initializer=uni_init))
-inner_model.add(ReLU(negative_slope=0.1))
-inner_model.add(Dropout(0.1, kernel_initializer=uni_init))
-inner_model.add(Dense(256, activation='linear'))
+inner_model.add(Dense(1024, kernel_initializer=uni_init, activation=keras.activations.sigmoid))
+inner_model.add(Dropout(0.1))
+inner_model.add(Dense(2 , kernel_initializer=uni_init, activation='linear'))
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 

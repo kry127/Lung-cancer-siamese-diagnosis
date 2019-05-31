@@ -17,35 +17,25 @@ source ~/activation
 
 # specify training folder for containing training and validation links
 TRAINING_FOLDER=training-list/6
-BATCHSIZE=32
 EPOCHS=0
 STEPS=0
-LEARNING_RATE=0.000006
-LAMBDA=8
-MARGIN=40
-THRESHOLD=15.0
 
-# create data and algorithm digest
-echo "bs=$BATCHSIZE e=$EPOCHS s=$STEPS lr=$LEARNING_RATE l=$LAMBDA th=$THRESHOLD m=$MARGIN same_benign\
-" >> ./$TRAINING_FOLDER/digest.txt
+KNN_K=1
+SIGMA=3.0
+THRESHOLD=15.0
 
 # run HPC task
 srun python3 3d_siamese.py \
 -F $TRAINING_FOLDER \
--tp -1      \
--vp 100      \
--bs $BATCHSIZE      \
 -e  $EPOCHS     \
 -s  $STEPS        \
--sb           \
 -lr $LEARNING_RATE \
 -aug         \
 -knn        \
--k  1        \
--si 3       \
+-k  $KNN_K        \
+-si $SIGMA       \
 -l $LAMBDA    \
 -th $THRESHOLD      \
--m  $MARGIN     \
 -V "$TRAINING_FOLDER/visual" \
 -L "$TRAINING_FOLDER/default.model"
 

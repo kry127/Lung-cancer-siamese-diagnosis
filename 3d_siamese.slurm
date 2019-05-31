@@ -17,35 +17,45 @@ source ~/activation
 
 # specify training folder for containing training and validation links
 TRAINING_FOLDER=training-list/6
-BATCHSIZE=26
-EPOCHS=8
-STEPS=400
-LEARNING_RATE=0.12
-LAMBDA=24
-MARGIN=40
-THRESHOLD=10.0
+BATCHSIZE=64
+EPOCHS=15
+STEPS=300
+LEARNING_RATE=0.18
+LEARNING_RATE_REDUCE_FACTOR_KEY="-rf 0.99"
+MARGIN=12
+LAMBDA1=1
+LAMBDA2=24
+LAMBDA3=1
+LAMBDA4=1
+LAMBDA5=1
+LAMBDA6=1
+LAMBDAS=$LAMBDA1;$LAMBDA2;$LAMBDA3;$LAMBDA4;$LAMBDA5;$LAMBDA6
 
 # create data and algorithm digest
-echo "bs=$BATCHSIZE e=$EPOCHS s=$STEPS lr=$LEARNING_RATE l=$LAMBDA th=$THRESHOLD m=$MARGIN same_benign\
+echo "bs=$BATCHSIZE e=$EPOCHS s=$STEPS lr=$LEARNING_RATE l=$LAMBDAS m=$MARGIN same_benign\
 " >> ./$TRAINING_FOLDER/digest.txt
 
 # run HPC task
 srun python3 3d_siamese.py \
 -F $TRAINING_FOLDER \
--tp -1      \
--vp 100      \
 -bs $BATCHSIZE      \
 -e  $EPOCHS     \
 -s  $STEPS        \
 -sb           \
 -lr $LEARNING_RATE \
+$LEARNING_RATE_REDUCE_FACTOR_KEY \
 -aug         \
--vis        \
+-vis         \
 -k  1        \
 -si 3       \
--l $LAMBDA    \
--th $THRESHOLD      \
+-th 15.0       \
 -m  $MARGIN     \
+-l1 $LAMBDA1    \
+-l2 $LAMBDA2    \
+-l3 $LAMBDA3    \
+-l4 $LAMBDA4    \
+-l5 $LAMBDA5    \
+-l6 $LAMBDA6    \
 -V "$TRAINING_FOLDER/visual" \
 -L "$TRAINING_FOLDER/default.model" \
 -S "$TRAINING_FOLDER/default.model"

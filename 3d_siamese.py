@@ -8,7 +8,7 @@ import time
 import utility
 import data_loader
 from utility import getArgvKeyValue, isArgvKeyPresented
-from models_src.model_simple import model
+from models_src.model_ordinary import model
 from models_src.custom_layers import distance_layer
 
 vis_regexp = 'vis_(\d\d\d\d).npy'
@@ -40,23 +40,29 @@ def check_folder(folder):
 # loading training and validation set, setting parameters
 training_folder = getArgvKeyValue("-F") # folder for data loading
 check_folder(training_folder)
-train_pair_count = int(getArgvKeyValue("-tp", 800)) # we take 1500 pairs every training step (75% training)
-validation_pair_count = int(getArgvKeyValue("-vp", 100)) # we take 500 pairs for validation (25% validation)
 same_benign = isArgvKeyPresented("-sb") # do we need benign-benign pairs in training and validation set?
-batch_size = int(getArgvKeyValue("-bs", 100)) # how many pairs form loss function in every training step (2 recomended)
-epochs_all = int(getArgvKeyValue("-e", 300)) # global epochs (with pair change)
-steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch available (0.96 acc: 120 for 2 batch size, 300 for 128 batch size)
-learning_rate = float(getArgvKeyValue("-lr", 0.000006))
+batch_size = int(getArgvKeyValue("-bs", 100)) # how many pairs form loss function in every training step
+epochs_all = int(getArgvKeyValue("-e", 300)) # every epoch training pairs shuffled
+steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch available
+learning_rate = float(getArgvKeyValue("-lr", 0.06)) # the learning rate should correspond to loss magnitude
 learning_rate_reduce_factor = getArgvKeyValue("-rf")
 if learning_rate_reduce_factor is not None:
       learning_rate_reduce_factor = float(learning_rate_reduce_factor)
 augmentation = isArgvKeyPresented("-aug")
 
-k = int(getArgvKeyValue("-k", 5)) # knn parameter -- pick k = 5 nearest neibourgs
+# loss function parameters
+margin = float(getArgvKeyValue("-m", 10)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
+lambda1 = float(getArgvKeyValue("-l1", 1)) # lambda1
+lambda2 = float(getArgvKeyValue("-l2", 1)) # lambda2
+lambda3 = float(getArgvKeyValue("-l3", 1)) # lambda3
+lambda4 = float(getArgvKeyValue("-l4", 1)) # lambda4
+lambda5 = float(getArgvKeyValue("-l5", 1)) # lambda5
+lambda6 = float(getArgvKeyValue("-l6", 1)) # lambda6
+
+# knn parameters
+k = int(getArgvKeyValue("-k", 5)) # pick k = 5 nearest neibourgs
 sigma = float(getArgvKeyValue("-si", 1)) # sigma parameter for distance
-lambda1 = float(getArgvKeyValue("-l", 0.0002)) # lambda1
 threshold = float(getArgvKeyValue("-th", 10)) # distance for both siamese accuracy and knn distance filter
-margin = float(getArgvKeyValue("-m", 1000)) # margin defines how strong dissimilar values are pushed from each other (contrastive loss)
 
 knn = isArgvKeyPresented("-knn")
 visualisation = isArgvKeyPresented("-vis")
@@ -68,11 +74,9 @@ print("\n")
 print ("+-----+-------------------------+---------+")
 print ("| Key | Parameter name          | Value   |")
 print ("+-----+-------------------------+---------+")
-print ("|         Tuning parameters table         |")
+print ("|        Training parameters table        |")
 print ("+-----+-------------------------+---------+")
 print ("| -F  | Training folder         | {0:<7} |".format(training_folder))
-print ("| -tp | Train pair count        | {0:<7} |".format(train_pair_count))
-print ("| -vp | Validation pair count   | {0:<7} |".format(validation_pair_count))
 print ("| -sb | Form benign-benign pair | {0:<7} |".format(str(same_benign)))
 print ("| -bs | Batch size              | {0:<7} |".format(batch_size))
 print ("| -e  | Epochs all              | {0:<7} |".format(epochs_all))
@@ -81,11 +85,21 @@ print ("| -lr | Learing rate            | {0:<7} |".format(learning_rate))
 print ("| -rf | LR (-lr) recude factor  | {0:<7} |".format(str(learning_rate_reduce_factor)))
 print ("| -aug| Augmentation            | {0:<7} |".format(str(augmentation)))
 print ("+-----+-------------------------+---------+")
+print ("|        Loss function parameters         |")
+print ("+-----+-------------------------+---------+")
+print ("| -m  | margin                  | {0:<7} |".format(margin))
+print ("| -l1 | lambda1                 | {0:<7} |".format(lambda1))
+print ("| -l2 | lambda2                 | {0:<7} |".format(lambda2))
+print ("| -l3 | lambda3                 | {0:<7} |".format(lambda3))
+print ("| -l4 | lambda4                 | {0:<7} |".format(lambda4))
+print ("| -l5 | lambda5                 | {0:<7} |".format(lambda5))
+print ("| -l6 | lambda6                 | {0:<7} |".format(lambda6))
+print ("+-----+-------------------------+---------+")
+print ("|             k-nn parameters             |")
+print ("+-----+-------------------------+---------+")
 print ("| -k  | k                       | {0:<7} |".format(k))
 print ("| -si | sigma                   | {0:<7} |".format(sigma))
-print ("| -l  | lambda1                 | {0:<7} |".format(lambda1))
 print ("| -th | threshold               | {0:<7} |".format(threshold))
-print ("| -m  | margin                  | {0:<7} |".format(margin))
 print ("+-----+-------------------------+---------+")
 print ("|            Other parameters             |")
 print ("+-----+-------------------------+---------+")
@@ -98,8 +112,6 @@ print ("+-----+-------------------------+---------+")
 print("\n", flush = True)
 
 # param preprocessing
-
-    
 if (isArgvKeyPresented("-V")):
     if (visualisation_folder != None):
         exists = os.path.exists(visualisation_folder)
@@ -128,17 +140,19 @@ loader = data_loader.Loader(training_folder, ct_folder, same_benign, augmentatio
 # Making siamese network for nodules comparison
 
 # importing model
+# as follows: "from models_src.model_simple import model"
 
 # parallelizing model on two GPU's
 #model = keras.utils.multi_gpu_model(model, gpus=2)
 
 # mean_distance for cancers
 def mean_distance(y_true, y_pred):
-      return K.mean(y_pred)
+    Dw = lambda1 * y_pred
+    return K.sum((1 - y_true) * Dw)/K.sum(1 - y_true)
       
 def mean_contradistance(y_true, y_pred):
-    margin_square = lambda1 * K.square(K.maximum(margin - y_pred, 0))
-    return K.sum(y_true * margin_square) / K.sum(y_true)
+    Cw = lambda2 * K.maximum(margin - y_pred, 0)
+    return K.sum(y_true * Cw) / K.sum(y_true)
 
 # Model is ready, let's compile it with quality function and optimizer
 def contrastive_loss(y_true, y_pred):
@@ -146,17 +160,22 @@ def contrastive_loss(y_true, y_pred):
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     '''
     #y_pred = y_pred / K.sum(y_pred)
-    square_pred = K.square(y_pred)
-    margin_square = lambda1 * K.square(K.maximum(margin - y_pred, 0))
-    return K.mean((1 - y_true) * square_pred + y_true * margin_square)
+    Dw = lambda1 * y_pred
+    Cw = lambda2 * K.maximum(margin - y_pred, 0)
+    return K.mean((1 - y_true) * Dw + y_true * Cw)
 
 # custom metrics
 def siamese_accuracy(y_true, y_pred):
     #https://github.com/tensorflow/tensorflow/issues/23133
-    '''Compute classification accuracy with a dynamic threshold on distances.
+    '''Compute custom classification accuracy.
     '''
-    m = mean_distance(y_true, y_pred)
-    return K.mean(K.equal(y_true, K.cast(y_pred > m, y_true.dtype)))
+    #m = mean_distance(y_true, y_pred)
+    #return K.mean(K.equal(y_true, K.cast(y_pred > threshold, y_true.dtype)))
+    Dw = lambda1 * y_pred
+    Dw_accuracy = 1 - K.sum(K.cast((1 - y_true) * Dw > threshold, "float32"))/K.sum(1 - y_true)
+    Cw = lambda2 * K.maximum(margin - y_pred, 0)
+    Cw_accuracy = (K.sum(K.cast(K.equal(y_true * Cw, 0), "float32")) - K.sum(1 - y_true)) / K.sum(y_true)
+    return (Dw_accuracy + Cw_accuracy) / 2
 
     
 #https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
