@@ -191,7 +191,7 @@ class Loader:
 
     def get_batch(self, id_same, id_different):
         pairs = np.ndarray((0,2,16,64,64))
-        pairs_y = np.ndarray((0, 2))
+        pairs_y = np.ndarray((0, 1))
         # form same pairs first
         for id_s in id_same:
             if self.same_benign:
