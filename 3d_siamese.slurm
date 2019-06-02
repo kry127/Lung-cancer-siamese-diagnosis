@@ -18,13 +18,13 @@ source ~/activation
 # specify training folder for containing training and validation links
 TRAINING_FOLDER=training-list/6
 BATCHSIZE=64
-EPOCHS=15
-STEPS=300
-LEARNING_RATE=0.18
+EPOCHS=100
+STEPS=1
+LEARNING_RATE=0.00018
 LEARNING_RATE_REDUCE_FACTOR_KEY="-rf 0.99"
-MARGIN=12
-LAMBDA1=1
-LAMBDA2=24
+MARGIN=30
+LAMBDA1=0.033
+LAMBDA2=16
 LAMBDA3=1
 LAMBDA4=1
 LAMBDA5=1
@@ -45,7 +45,7 @@ srun python3 3d_siamese.py \
 -lr $LEARNING_RATE \
 $LEARNING_RATE_REDUCE_FACTOR_KEY \
 -aug         \
--vis         \
+-vis        \
 -k  1        \
 -si 3       \
 -th 15.0       \

@@ -165,6 +165,7 @@ def contrastive_loss(y_true, y_pred):
     return K.mean((1 - y_true) * Dw + y_true * Cw)
 
 # custom metrics
+# obsolete, just abuse of computational resources
 def siamese_accuracy(y_true, y_pred):
     #https://github.com/tensorflow/tensorflow/issues/23133
     '''Compute custom classification accuracy.
@@ -179,12 +180,12 @@ def siamese_accuracy(y_true, y_pred):
 
     
 #https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
-#optimizer = keras.optimizers.Adam(lr = learning_rate)
-optimizer = keras.optimizers.SGD(lr=learning_rate, momentum=0.3)
+optimizer = keras.optimizers.Adam(lr = learning_rate)
+#optimizer = keras.optimizers.SGD(lr=learning_rate, momentum=0.3)
 model.compile(
     optimizer=optimizer,
     loss=contrastive_loss,
-    metrics=[mean_distance, mean_contradistance, siamese_accuracy]
+    metrics=[mean_distance, mean_contradistance]
 )
 
 # check if user wants to preload existing weights
@@ -198,8 +199,7 @@ def preload_weights():
                         # we should load it with custom objects
                         # https://github.com/keras-team/keras/issues/5916
                         model = keras.models.load_model(model_weights_load_file
-                              , custom_objects={'siamese_accuracy': siamese_accuracy,
-                                                'mean_distance': mean_distance,
+                              , custom_objects={'mean_distance': mean_distance,
                                                 'mean_contradistance': mean_contradistance,
                                                 'contrastive_loss': contrastive_loss})
                         return

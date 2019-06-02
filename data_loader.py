@@ -170,28 +170,28 @@ class Loader:
 
     def get_benign_benign(self, index):
         i, j = convert_index_linear_to_triangle(self.data_benign.shape[0], index)
-        return get_pair(self.data_benign, self.data_benign, i, j)
+        return get_pair(self.data_benign, self.data_benign, i, j), np.array([0,0])
 
     def get_malignant_malignant(self, index):
         i, j = convert_index_linear_to_triangle(self.data_malignant.shape[0], index)
-        return get_pair(self.data_malignant, self.data_malignant, i, j)
+        return get_pair(self.data_malignant, self.data_malignant, i, j), np.array([1,1])
 
     def get_different(self, index):
         w = self.data_malignant.shape[0]
         i = index // w # benign index
         j = index - i*w # malignant index
-        return get_pair(self.data_benign, self.data_malignant, i, j)
+        return get_pair(self.data_benign, self.data_malignant, i, j), np.array([0,1])
 
     def get_same(self, index):
         b = self.len_benign_benign()
         if (index < b):
-            return self.get_benign_benign(index)
+            return self.get_benign_benign(index), np.array([0,0])
         else:
-            return self.get_malignant_malignant(index - b)
+            return self.get_malignant_malignant(index - b), np.array([1,1])
 
     def get_batch(self, id_same, id_different):
         pairs = np.ndarray((0,2,16,64,64))
-        pairs_y = np.ndarray((0, 1))
+        pairs_y = np.ndarray((0, 2))
         # form same pairs first
         for id_s in id_same:
             if self.same_benign:
