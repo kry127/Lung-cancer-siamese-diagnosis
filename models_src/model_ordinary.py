@@ -57,4 +57,4 @@ merge_layer_lambda = keras.layers.Lambda(sqr_distance_layer)
 merge_layer = merge_layer_lambda([ct_img_model1, ct_img_model2])
 
 # Finally, creating model with two inputs 'mnist_img' 1 and 2 and output 'final layer'
-model = keras.Model([ct_img1, ct_img2], merge_layer)
+model = keras.Model(inputs=[ct_img1, ct_img2], outputs=[ct_img_model1, ct_img_model2, merge_layer])

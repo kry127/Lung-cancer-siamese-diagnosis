@@ -147,22 +147,34 @@ loader = data_loader.Loader(training_folder, ct_folder, same_benign, augmentatio
 
 # mean_distance for cancers
 def mean_distance(y_true, y_pred):
+    z_true = np.sum(y_true, axis=1) % 2 # weak lables
     Dw = lambda1 * y_pred
-    return K.sum((1 - y_true) * Dw)/K.sum(1 - y_true)
+    return K.sum((1 - z_true) * Dw)/K.sum(1 - z_true)
       
 def mean_contradistance(y_true, y_pred):
+    z_true = np.sum(y_true, axis=1) % 2 # weak lables
     Cw = lambda2 * K.maximum(margin - y_pred, 0)
-    return K.sum(y_true * Cw) / K.sum(y_true)
+    return K.sum(z_true * Cw) / K.sum(z_true)
 
 # Model is ready, let's compile it with quality function and optimizer
 def contrastive_loss(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     '''
-    #y_pred = y_pred / K.sum(y_pred)
+    z_true = np.sum(y_true, axis=1) % 2 # weak lables
+    #z_true = z_true / K.sum(z_true)
     Dw = lambda1 * y_pred
     Cw = lambda2 * K.maximum(margin - y_pred, 0)
-    return K.mean((1 - y_true) * Dw + y_true * Cw)
+    return K.mean((1 - z_true) * Dw + z_true * Cw)
+
+def swarm_loss(y_true, y_pred):
+    '''Addition to contrastive loss function
+    y_true={0,1} is class for instance (ofc array)
+    while y_pred is feature vector
+    '''
+    # difficult to implement
+    return 0
+
 
 # custom metrics
 # obsolete, just abuse of computational resources
@@ -170,22 +182,28 @@ def siamese_accuracy(y_true, y_pred):
     #https://github.com/tensorflow/tensorflow/issues/23133
     '''Compute custom classification accuracy.
     '''
-    #m = mean_distance(y_true, y_pred)
-    #return K.mean(K.equal(y_true, K.cast(y_pred > threshold, y_true.dtype)))
+    z_true = np.sum(y_true, axis=1) % 2 # weak lables
+    #m = mean_distance(z_true, y_pred)
+    #return K.mean(K.equal(z_true, K.cast(y_pred > threshold, z_true.dtype)))
     Dw = lambda1 * y_pred
-    Dw_accuracy = 1 - K.sum(K.cast((1 - y_true) * Dw > threshold, "float32"))/K.sum(1 - y_true)
+    Dw_accuracy = 1 - K.sum(K.cast((1 - z_true) * Dw > threshold, "float32"))/K.sum(1 - z_true)
     Cw = lambda2 * K.maximum(margin - y_pred, 0)
-    Cw_accuracy = (K.sum(K.cast(K.equal(y_true * Cw, 0), "float32")) - K.sum(1 - y_true)) / K.sum(y_true)
+    Cw_accuracy = (K.sum(K.cast(K.equal(z_true * Cw, 0), "float32")) - K.sum(1 - z_true)) / K.sum(z_true)
     return (Dw_accuracy + Cw_accuracy) / 2
 
     
 #https://stackoverflow.com/questions/37232782/nan-loss-when-training-regression-network
 optimizer = keras.optimizers.Adam(lr = learning_rate)
 #optimizer = keras.optimizers.SGD(lr=learning_rate, momentum=0.3)
+
+# how to compile multiinput and multioutput model
+# https://keras.io/getting-started/functional-api-guide/
+# https://github.com/keras-team/keras/issues/577
 model.compile(
     optimizer=optimizer,
-    loss=contrastive_loss,
-    metrics=[mean_distance, mean_contradistance]
+    loss={'merge_layer': contrastive_loss, 'ct_img_model1': swarm_loss, 'ct_img_model2': swarm_loss},
+    loss_weights={'main_output': 1.0, 'ct_img_model1': 1.0, 'ct_img_model2': 1.0},
+    metrics={'main_output': [mean_distance, mean_contradistance]}
 )
 
 # check if user wants to preload existing weights
@@ -410,9 +428,13 @@ if steps_per_epoch <= 0:
           # no actual training, launch knn and vis if needed
           end_checks()
 
-model.fit_generator(generator=training_batch_generator,
-      epochs=epochs_all,
-      steps_per_epoch = steps_per_epoch,
-      verbose=1,
-      shuffle=True,
-      callbacks = callbacks)
+# how to fit complex model
+# https://keras.io/getting-started/functional-api-guide/
+# https://stackoverflow.com/questions/49404993/keras-how-to-use-fit-generator-with-multiple-inputs
+model.fit_generator(
+    generator=training_batch_generator,
+    epochs=epochs_all,
+    steps_per_epoch = steps_per_epoch,
+    verbose=1,
+    shuffle=True,
+    callbacks = callbacks)
