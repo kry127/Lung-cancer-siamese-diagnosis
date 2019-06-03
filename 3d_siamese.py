@@ -174,8 +174,13 @@ def swarm_loss(y_true, y_pred):
     # difficult to implement
     center1 = K.sum(K.dot(y_true, y_pred), axis=0)/K.maximum(K.sum(y_true), 1)
     center2 = K.sum(K.dot(1-y_true, y_pred), axis=0)/K.maximum(K.sum(1-y_true), 1)
-    d1 = distance_layer([y_pred, K.tile(K.expand_dims(center1, axis=0), K.shape(y_pred)[0])])
-    d2 = distance_layer([y_pred, K.tile(K.expand_dims(center2, axis=0), K.shape(y_pred)[0])])
+    n = K.shape(y_pred)[0]
+    center1exp = K.expand_dims(center1, axis=0)
+    center2exp = K.expand_dims(center2, axis=0)
+    center1tile = K.tile(center1exp, n)
+    center2tile = K.tile(center2exp, n)
+    d1 = distance_layer([y_pred, center1tile])
+    d2 = distance_layer([y_pred, center2tile])
     d = K.dot(y_true, d1) + K.dot(1 - y_true, d2)
     
     return K.mean(d)
