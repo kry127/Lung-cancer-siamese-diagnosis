@@ -51,9 +51,11 @@ inner_model.add(Dense(2048, kernel_initializer=uni_init, activation=keras.activa
 inner_model.add(Dense(2,  kernel_initializer=uni_init, activation='linear'))
 
 ct_img_model1 = inner_model(ct_img1_r)
+ct_img_model1 = keras.layers.Activation('linear', name="ct_img_model1")(ct_img_model1)
 ct_img_model2 = inner_model(ct_img2_r)
+ct_img_model2 = keras.layers.Activation('linear', name="ct_img_model2")(ct_img_model2)
 
-merge_layer_lambda = keras.layers.Lambda(sqr_distance_layer)
+merge_layer_lambda = keras.layers.Lambda(sqr_distance_layer, name="merge_layer")
 merge_layer = merge_layer_lambda([ct_img_model1, ct_img_model2])
 
 # Finally, creating model with two inputs 'mnist_img' 1 and 2 and output 'final layer'

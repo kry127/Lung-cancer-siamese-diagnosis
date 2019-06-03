@@ -16,10 +16,10 @@ module purge
 source ~/activation
 
 # specify training folder for containing training and validation links
-TRAINING_FOLDER=training-list/6
+TRAINING_FOLDER=training-list/10
 BATCHSIZE=64
-EPOCHS=100
-STEPS=1
+EPOCHS=3
+STEPS=10
 LEARNING_RATE=0.00018
 LEARNING_RATE_REDUCE_FACTOR_KEY="-rf 0.99"
 MARGIN=30
@@ -29,7 +29,7 @@ LAMBDA3=1
 LAMBDA4=1
 LAMBDA5=1
 LAMBDA6=1
-LAMBDAS=$LAMBDA1;$LAMBDA2;$LAMBDA3;$LAMBDA4;$LAMBDA5;$LAMBDA6
+LAMBDAS="$LAMBDA1;$LAMBDA2;$LAMBDA3;$LAMBDA4;$LAMBDA5;$LAMBDA6"
 
 # create data and algorithm digest
 echo "bs=$BATCHSIZE e=$EPOCHS s=$STEPS lr=$LEARNING_RATE l=$LAMBDAS m=$MARGIN same_benign\

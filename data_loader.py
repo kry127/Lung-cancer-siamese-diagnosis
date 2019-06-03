@@ -185,9 +185,9 @@ class Loader:
     def get_same(self, index):
         b = self.len_benign_benign()
         if (index < b):
-            return self.get_benign_benign(index), np.array([0,0])
+            return self.get_benign_benign(index)
         else:
-            return self.get_malignant_malignant(index - b), np.array([1,1])
+            return self.get_malignant_malignant(index - b)
 
     def get_batch(self, id_same, id_different):
         pairs = np.ndarray((0,2,16,64,64))
@@ -199,16 +199,18 @@ class Loader:
             else:
                 pair, markup = self.get_malignant_malignant(id_s)
             pairs = np.append(pairs, [pair], axis=0)
-            pairs_y = np.append(pairs_y, markup) 
+            pairs_y = np.append(pairs_y, [markup], axis=0) 
         # then form different pairs
         for id_d in id_different:
             pair, markup = self.get_different(id_d)
             pairs = np.append(pairs, [pair], axis=0)
-            pairs_y = np.append(pairs_y, markup) 
+            pairs_y = np.append(pairs_y, [markup], axis=0) 
         
         # return batch
         pairs = np.swapaxes(pairs, 0, 1)
-        return list(pairs), [pairs_y, pairs_y[:0], pairs_y[:1]]
+        #long but useful!!! see it:
+        #print("Mini-batch labels = {}".format(pairs_y))
+        return list(pairs), [np.sum(pairs_y, axis=1) % 2, pairs_y[:,0], pairs_y[:,1]]
 
 
 

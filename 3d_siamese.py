@@ -147,33 +147,32 @@ loader = data_loader.Loader(training_folder, ct_folder, same_benign, augmentatio
 
 # mean_distance for cancers
 def mean_distance(y_true, y_pred):
-    z_true = np.sum(y_true, axis=1) % 2 # weak lables
+    #z_true = np.sum(y_true, axis=1) % 2 # weak lables
     Dw = lambda1 * y_pred
-    return K.sum((1 - z_true) * Dw)/K.sum(1 - z_true)
+    return K.sum((1 - y_true) * Dw)/K.maximum(K.sum(1 - y_true), 1)
       
 def mean_contradistance(y_true, y_pred):
-    z_true = np.sum(y_true, axis=1) % 2 # weak lables
     Cw = lambda2 * K.maximum(margin - y_pred, 0)
-    return K.sum(z_true * Cw) / K.sum(z_true)
+    return K.sum(y_true * Cw) / K.sum(y_true)
 
 # Model is ready, let's compile it with quality function and optimizer
 def contrastive_loss(y_true, y_pred):
     '''Contrastive loss from Hadsell-et-al.'06
     http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     '''
-    z_true = np.sum(y_true, axis=1) % 2 # weak lables
-    #z_true = z_true / K.sum(z_true)
+    #y_true = y_true / K.sum(y_true)
     Dw = lambda1 * y_pred
     Cw = lambda2 * K.maximum(margin - y_pred, 0)
-    return K.mean((1 - z_true) * Dw + z_true * Cw)
+    return K.mean((1 - y_true) * Dw + y_true * Cw)
 
 def swarm_loss(y_true, y_pred):
     '''Addition to contrastive loss function
     y_true={0,1} is class for instance (ofc array)
+    This is not the measure of close values, as in contrastive loss
     while y_pred is feature vector
     '''
     # difficult to implement
-    return 0
+    return K.mean(y_true)
 
 
 # custom metrics
@@ -202,8 +201,8 @@ optimizer = keras.optimizers.Adam(lr = learning_rate)
 model.compile(
     optimizer=optimizer,
     loss={'merge_layer': contrastive_loss, 'ct_img_model1': swarm_loss, 'ct_img_model2': swarm_loss},
-    loss_weights={'main_output': 1.0, 'ct_img_model1': 1.0, 'ct_img_model2': 1.0},
-    metrics={'main_output': [mean_distance, mean_contradistance]}
+    loss_weights={'merge_layer': 1.0, 'ct_img_model1': 0.0, 'ct_img_model2': 0.0},
+    metrics={'merge_layer': [mean_distance, mean_contradistance]}
 )
 
 # check if user wants to preload existing weights
@@ -219,7 +218,8 @@ def preload_weights():
                         model = keras.models.load_model(model_weights_load_file
                               , custom_objects={'mean_distance': mean_distance,
                                                 'mean_contradistance': mean_contradistance,
-                                                'contrastive_loss': contrastive_loss})
+                                                'contrastive_loss': contrastive_loss,
+                                                'swarm_loss': swarm_loss})
                         return
             print("No weights file found specified at '-L' key!", file=os.sys.stderr)
 
