@@ -1,7 +1,8 @@
 import keras
 
 from keras import backend as K
-from keras.layers import Conv3D, SpatialDropout3D, MaxPooling3D, AvgPool3D, Dropout, Flatten, Dense, ReLU
+from keras.layers import Conv3D, SpatialDropout3D, MaxPooling3D, BatchNormalization, \
+                         AvgPool3D, Dropout, Flatten, Dense, ReLU
 from keras import regularizers
 
 from models_src.custom_layers import sqr_distance_layer
@@ -45,6 +46,7 @@ inner_model.add(ReLU(negative_slope=0.1))
 
 # Then, we should flatten last layer
 inner_model.add(Flatten())
+inner_model.add(BatchNormalization())
 inner_model.add(Dense(2048, kernel_initializer=uni_init))
 inner_model.add(ReLU(negative_slope=0.1))
 inner_model.add(Dense(2048, kernel_initializer=uni_init, activation=keras.activations.sigmoid))

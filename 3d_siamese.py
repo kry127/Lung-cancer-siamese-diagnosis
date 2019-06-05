@@ -179,12 +179,14 @@ def swarm_loss(y_true, y_pred):
     center2exp = K.expand_dims(center2, axis=0)
     center1tile = K.tile(center1exp, [n,1])
     center2tile = K.tile(center2exp, [n,1])
-    print("center1:{}, center1exp:{}, center1tile:{}".format(center1, center1exp, center1tile))
     d1 = distance_layer([y_pred, center1tile])
     d2 = distance_layer([y_pred, center2tile])
-    d = K.dot(K.transpose(y_true), d1) + K.dot(K.transpose(1 - y_true), d2)
-    
+    d = lambda3*K.dot(K.transpose(y_true), d1) + lambda4*K.dot(K.transpose(1 - y_true), d2)
+
     return K.mean(d)
+
+def no_loss(y_true, y_pred):
+    return K.constant(0)
 
 
 # custom metrics
@@ -213,7 +215,7 @@ optimizer = keras.optimizers.Adam(lr = learning_rate)
 model.compile(
     optimizer=optimizer,
     loss={'merge_layer': contrastive_loss, 'ct_img_model1': swarm_loss, 'ct_img_model2': swarm_loss},
-    loss_weights={'merge_layer': 1.0, 'ct_img_model1': 0.0, 'ct_img_model2': 0.0},
+    loss_weights={'merge_layer': 1.0, 'ct_img_model1': lambda5, 'ct_img_model2': lambda6},
     metrics={'merge_layer': [mean_distance, mean_contradistance]}
 )
 
@@ -231,7 +233,8 @@ def preload_weights():
                               , custom_objects={'mean_distance': mean_distance,
                                                 'mean_contradistance': mean_contradistance,
                                                 'contrastive_loss': contrastive_loss,
-                                                'swarm_loss': swarm_loss})
+                                                'swarm_loss': swarm_loss,
+                                                'no_loss': no_loss})
                         return
             print("No weights file found specified at '-L' key!", file=os.sys.stderr)
 
