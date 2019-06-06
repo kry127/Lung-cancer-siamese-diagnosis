@@ -8,7 +8,7 @@ import time
 import utility
 import data_loader
 from utility import getArgvKeyValue, isArgvKeyPresented
-from models_src.model_ordinary import model
+from models_src.model_ResNet import model
 from models_src.custom_layers import distance_layer
 
 vis_regexp = 'vis_(\d\d\d\d).npy'
@@ -136,7 +136,7 @@ if (isArgvKeyPresented("-V")):
         print("No path specified at -V key", file=os.sys.stderr)
 
 # init loader class
-loader = data_loader.Loader(training_folder, ct_folder, same_benign, augmentation)
+loader = data_loader.Loader(training_folder, ct_folder, cancer_folder, same_benign, augmentation)
 # Making siamese network for nodules comparison
 
 # importing model

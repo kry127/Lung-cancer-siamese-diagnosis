@@ -2,7 +2,7 @@ import os
 from keras.utils import Sequence
 import numpy as np
 
-from utility import ct_folder
+from utility import ct_folder, cancer_folder
 
 # https://machinelearningmastery.com/how-to-load-large-datasets-from-directories-for-deep-learning-with-keras/
 # https://medium.com/datadriveninvestor/keras-training-on-large-datasets-3e9d9dbc09d4
@@ -35,6 +35,14 @@ class Pair_Generator(Sequence):
             self.index_diff = np.tile(self.index_diff, int(np.ceil(len_same / len_diff)))
             self.index_diff = self.index_diff[:len_same]
 
+        #shuffle training set
+        self.shuffle_indices()
+        
+    def shuffle_indices(self):
+        """function shuffles training set
+        """
+        np.random.shuffle(self.index_same)
+        np.random.shuffle(self.index_diff)
 
     def __len__(self):
         return int(np.ceil(self.length / float(self.batch_size)))
@@ -45,8 +53,7 @@ class Pair_Generator(Sequence):
         return self.loader.get_batch(batch_same, batch_diff)
 
     def on_epoch_end(self):
-        np.random.shuffle(self.index_same)
-        np.random.shuffle(self.index_diff)
+        self.shuffle_indices()
 
 
 def convert_index_linear_to_triangle(n, index):
@@ -101,15 +108,36 @@ def get_pair(arr1, arr2, i1, i2):
     pair = np.array([A, B])
     return pair
 
+
+    # load data 
+def load_train_data(folder, dataset_list, augment = None):
+    data_nodules = np.ndarray((0,16,16,16))
+    for nodule in dataset_list: #go through benign examples
+            valarr = nodule.split('_')
+            if (valarr[1] == "img"):
+                data = np.load(os.path.join(folder, nodule))
+                data_nodules = np.append(data_nodules, [data], axis = 0)
+                # data augmentation: there are 8 flips of image
+                if augment:
+                        data_nodules = np.append(data_nodules, [np.flip(data, (0))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (1))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (2))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 1))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (1, 2))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 2))], axis = 0)
+                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 1, 2))], axis = 0)
+    return data_nodules
+
 class Loader:
     """
     This class handles:
     1. loading ct images
     2. accesing ct image pairs using linear index
     """
-    def __init__(self, training_folder, data_folder, same_benign=True, augmentation=True):
+    def __init__(self, training_folder, benign_folder, malignant_folder, same_benign=True, augmentation=True):
         self.training_folder = training_folder
-        self.data_folder = data_folder
+        self.benign_folder = benign_folder
+        self.malignant_folder = malignant_folder
         self.same_benign = same_benign
         self.augmentation = augmentation
 
@@ -127,32 +155,13 @@ class Loader:
             len(self.train_benign), len(self.train_malignant),
             len(self.validation_malignant), len(self.validation_benign)))
 
-        self.data_benign = self.load_train_data(self.train_benign, augment=self.augmentation)
-        self.data_malignant = self.load_train_data(self.train_malignant, augment=self.augmentation)
-        self.data_validation_benign = self.load_train_data(self.validation_benign)
-        self.data_validation_malignant = self.load_train_data(self.validation_malignant)
+        self.data_benign = load_train_data(self.benign_folder, self.train_benign, augment=self.augmentation)
+        self.data_malignant = load_train_data(self.malignant_folder, self.train_malignant, augment=self.augmentation)
+        self.data_validation_benign = load_train_data(self.benign_folder, self.validation_benign)
+        self.data_validation_malignant = load_train_data(self.malignant_folder, self.validation_malignant)
 
     def get_training_generator(self, batch_size):
         return Pair_Generator(self, batch_size)
-
-    # load data 
-    def load_train_data(self, dataset_list, augment = None):
-        data_nodules = np.ndarray((0,16,64,64))
-        for nodule in dataset_list: #go through benign examples
-                valarr = nodule.split('_')
-                if (valarr[1] == "img"):
-                    data = np.load(os.path.join(self.data_folder, nodule))
-                    data_nodules = np.append(data_nodules, [data], axis = 0)
-                    # data augmentation: there are 8 flips of image
-                    if augment:
-                            data_nodules = np.append(data_nodules, [np.flip(data, (0))], axis = 0)
-                            data_nodules = np.append(data_nodules, [np.flip(data, (1))], axis = 0)
-                            data_nodules = np.append(data_nodules, [np.flip(data, (2))], axis = 0)
-                            data_nodules = np.append(data_nodules, [np.flip(data, (0, 1))], axis = 0)
-                            data_nodules = np.append(data_nodules, [np.flip(data, (1, 2))], axis = 0)
-                            data_nodules = np.append(data_nodules, [np.flip(data, (0, 2))], axis = 0)
-                            data_nodules = np.append(data_nodules, [np.flip(data, (0, 1, 2))], axis = 0)
-        return data_nodules
 
     def len_benign_benign(self):
         N = self.data_benign.shape[0]
@@ -170,27 +179,27 @@ class Loader:
 
     def get_benign_benign(self, index):
         i, j = convert_index_linear_to_triangle(self.data_benign.shape[0], index)
-        return get_pair(self.data_benign, self.data_benign, i, j), np.array([0,0])
+        return get_pair(self.data_benign, self.data_benign, i, j)
 
     def get_malignant_malignant(self, index):
         i, j = convert_index_linear_to_triangle(self.data_malignant.shape[0], index)
-        return get_pair(self.data_malignant, self.data_malignant, i, j), np.array([1,1])
+        return get_pair(self.data_malignant, self.data_malignant, i, j)
 
     def get_different(self, index):
         w = self.data_malignant.shape[0]
         i = index // w # benign index
         j = index - i*w # malignant index
-        return get_pair(self.data_benign, self.data_malignant, i, j), np.array([0,1])
+        return get_pair(self.data_benign, self.data_malignant, i, j)
 
     def get_same(self, index):
         b = self.len_benign_benign()
         if (index < b):
-            return self.get_benign_benign(index), np.array([0,0])
+            return self.get_benign_benign(index)
         else:
-            return self.get_malignant_malignant(index - b), np.array([1,1])
+            return self.get_malignant_malignant(index - b)
 
     def get_batch(self, id_same, id_different):
-        pairs = np.ndarray((0,2,16,64,64))
+        pairs = np.ndarray((0,2,16,16,16))
         pairs_y = np.ndarray((0, 1))
         # form same pairs first
         for id_s in id_same:
@@ -215,7 +224,7 @@ class Loader:
     # automatically forming training pairs
     # N is half of of the batch size
     def form_pairs_auto(self, Nhalf, benign, malignant):
-        pairs = np.ndarray((0,2,16,64,64))
+        pairs = np.ndarray((0,2,16,16,16))
         pairs_y = np.ndarray((0, 1))
         for i in range (0, Nhalf):
             # replace = False ~ no repeats
@@ -240,7 +249,7 @@ class Loader:
         return list(pairs), pairs_y
 
     def form_pairs_auto_no_same_benign(self, Nthird, benign, malignant):
-        pairs = np.ndarray((0,2,16,64,64))
+        pairs = np.ndarray((0,2,16,16,16))
         pairs_y = np.ndarray((0, 1))
         for i in range (0, Nthird):
             # replace = False ~ no repeats

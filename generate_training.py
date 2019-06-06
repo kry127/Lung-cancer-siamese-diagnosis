@@ -3,9 +3,6 @@ import sys
 import numpy as np
 import utility
 
-ct_folder = utility.ct_folder
-cancer_folder = utility.cancer_folder
-
 train_count = 100
 validation_count = 30
 
@@ -34,28 +31,13 @@ validation_count = int(utility.getArgvKeyValue("-v", validation_count))
 
 
 # https://luna16.grand-challenge.org/Data/
-ct_dataset = os.listdir(ct_folder)
-cancer_dataset = os.listdir(cancer_folder)
-
-ct_set = np.array(ct_dataset) # get set of all ct images and their masks
-malignant_set = np.array(cancer_dataset) # get ct images containing cancer (call it malignant)
-benign_set = np.setxor1d(ct_set, malignant_set) # make list of benign nodules
-
-# filtering -- leave only images
-def filter_data(dataset_list, prefix = "img"):
-      ret = np.array([])
-      for nodule in dataset_list: #go through benign examples
-            valarr = nodule.split('_')
-            if (valarr[1] == prefix):
-                  ret = np.append(ret, [nodule])
-      return ret
+benign_set, malignant_set = utility.get_cancer_list()
 
 # print found classes + masks
 print("Img + masks. beingn: {}, malignant: {}".format(
       len(benign_set), len(malignant_set)))
 
-benign_set = filter_data(benign_set)
-malignant_set = filter_data(malignant_set)
+benign_set, malignant_set = utility.get_cancer_list("img")
 
 print("Img. beingn: {}, malignant: {}".format(
       len(benign_set), len(malignant_set)))

@@ -16,7 +16,7 @@ module purge
 source ~/activation
 
 # specify training folder for containing training and validation links
-TRAINING_FOLDER=training-list/6
+TRAINING_FOLDER=training-list/11
 EPOCHS=0
 STEPS=0
 
@@ -24,12 +24,12 @@ KNN_K=1
 SIGMA=3.0
 THRESHOLD=15.0
 
+
 # run HPC task
 srun python3 3d_siamese.py \
 -F $TRAINING_FOLDER \
 -e  $EPOCHS     \
 -s  $STEPS        \
--lr $LEARNING_RATE \
 -aug         \
 -knn        \
 -k  $KNN_K        \
