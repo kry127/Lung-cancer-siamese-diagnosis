@@ -18,7 +18,7 @@ source ~/activation
 # specify training folder for containing training and validation links
 TRAINING_FOLDER=training-list/11
 BATCHSIZE=128
-EPOCHS=2
+EPOCHS=3
 STEPS=-1
 LEARNING_RATE=0.34
 LEARNING_RATE_REDUCE_FACTOR_KEY="-rf 0.98"
@@ -62,3 +62,5 @@ $LEARNING_RATE_REDUCE_FACTOR_KEY \
 
 
 
+# pipeline info:
+# https://hpc.nih.gov/docs/job_dependencies.html

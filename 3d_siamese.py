@@ -22,20 +22,20 @@ ct_folder = utility.ct_folder # folder with all computer tomography images
 cancer_folder = utility.cancer_folder # folder with cancerous tomography images
 
 def print_help():
-      pass
+    pass
 
 def check_folder(folder):
-  if (folder is None):
-    print("Folder -F is not specified!")
-    #print_help()
-    exit(1)
+    if (folder is None):
+        print("Folder -F is not specified!")
+        #print_help()
+        exit(1)
 
-  # check folder exists
-  isdir = os.path.isdir(folder)
-  if not isdir:
-    print("Folder -F is not exist!")
-    #print_help()
-    exit(1)
+    # check folder exists
+    isdir = os.path.isdir(folder)
+    if not isdir:
+        print("Folder -F is not exist!")
+        #print_help()
+        exit(1)
 
 # loading training and validation set, setting parameters
 training_folder = getArgvKeyValue("-F") # folder for data loading
@@ -47,7 +47,7 @@ steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch avail
 learning_rate = float(getArgvKeyValue("-lr", 0.06)) # the learning rate should correspond to loss magnitude
 learning_rate_reduce_factor = getArgvKeyValue("-rf")
 if learning_rate_reduce_factor is not None:
-      learning_rate_reduce_factor = float(learning_rate_reduce_factor)
+    learning_rate_reduce_factor = float(learning_rate_reduce_factor)
 augmentation = isArgvKeyPresented("-aug")
 
 # loss function parameters
@@ -65,6 +65,9 @@ sigma = float(getArgvKeyValue("-si", 1)) # sigma parameter for distance
 threshold = float(getArgvKeyValue("-th", 10)) # distance for both siamese accuracy and knn distance filter
 
 knn = isArgvKeyPresented("-knn")
+if (knn):
+    print("Warning! key '-knn' is deprecated and should not be used. It will be switched off")
+    knn = False
 visualisation = isArgvKeyPresented("-vis")
 visualisation_folder = getArgvKeyValue("-V")
 model_weights_load_file = getArgvKeyValue("-L") # can be none
@@ -190,20 +193,20 @@ model.compile(
 
 # check if user wants to preload existing weights
 def preload_weights():
-      global model
-      if (isArgvKeyPresented("-L")):
-            if (model_weights_load_file != None):
-                  exists = os.path.isfile(model_weights_load_file)
-                  if exists:
+    global model
+    if (isArgvKeyPresented("-L")):
+        if (model_weights_load_file != None):
+            exists = os.path.isfile(model_weights_load_file)
+            if exists:
 
-                        # we should load it with custom objects
-                        # https://github.com/keras-team/keras/issues/5916
-                        model = keras.models.load_model(model_weights_load_file
-                              , custom_objects={'mean_distance': mean_distance,
-                                                'mean_contradistance': mean_contradistance,
-                                                'contrastive_loss': contrastive_loss})
-                        return
-            print("No weights file found specified at '-L' key!", file=os.sys.stderr)
+                # we should load it with custom objects
+                # https://github.com/keras-team/keras/issues/5916
+                model = keras.models.load_model(model_weights_load_file
+                        , custom_objects={'mean_distance': mean_distance,
+                                        'mean_contradistance': mean_contradistance,
+                                        'contrastive_loss': contrastive_loss})
+                return
+        print("No weights file found specified at '-L' key!", file=os.sys.stderr)
 
 preload_weights()
 

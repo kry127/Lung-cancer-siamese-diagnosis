@@ -113,19 +113,19 @@ def get_pair(arr1, arr2, i1, i2):
 def load_train_data(folder, dataset_list, augment = None):
     data_nodules = np.ndarray((0,16,16,16))
     for nodule in dataset_list: #go through benign examples
-            valarr = nodule.split('_')
-            if (valarr[1] == "img"):
-                data = np.load(os.path.join(folder, nodule))
-                data_nodules = np.append(data_nodules, [data], axis = 0)
-                # data augmentation: there are 8 flips of image
-                if augment:
-                        data_nodules = np.append(data_nodules, [np.flip(data, (0))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (1))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (2))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 1))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (1, 2))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 2))], axis = 0)
-                        data_nodules = np.append(data_nodules, [np.flip(data, (0, 1, 2))], axis = 0)
+        valarr = nodule.split('_')
+        if (valarr[1] == "img"):
+            data = np.load(os.path.join(folder, nodule))
+            data_nodules = np.append(data_nodules, [data], axis = 0)
+            # data augmentation: there are 8 flips of image
+            if augment:
+                data_nodules = np.append(data_nodules, [np.flip(data, (0))], axis = 0)
+                data_nodules = np.append(data_nodules, [np.flip(data, (1))], axis = 0)
+                data_nodules = np.append(data_nodules, [np.flip(data, (2))], axis = 0)
+                data_nodules = np.append(data_nodules, [np.flip(data, (0, 1))], axis = 0)
+                data_nodules = np.append(data_nodules, [np.flip(data, (1, 2))], axis = 0)
+                data_nodules = np.append(data_nodules, [np.flip(data, (0, 2))], axis = 0)
+                data_nodules = np.append(data_nodules, [np.flip(data, (0, 1, 2))], axis = 0)
     return data_nodules
 
 class Loader:
@@ -282,6 +282,6 @@ class Loader:
 
     def form_pairs(self, N, benign, malignant):
         if self.same_benign:
-                return self.form_pairs_auto(int(np.ceil(N/4)), benign, malignant)
+            return self.form_pairs_auto(int(np.ceil(N/4)), benign, malignant)
         else:
-                return self.form_pairs_auto_no_same_benign(int(np.ceil(N/6)), benign, malignant)
+            return self.form_pairs_auto_no_same_benign(int(np.ceil(N/6)), benign, malignant)

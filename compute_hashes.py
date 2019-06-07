@@ -7,52 +7,42 @@ import numpy as np
 import keras.backend as K
 from datetime import datetime
 
-from utility import getArgvKeyValue, isArgvKeyPresented, get_cancer_list, ct_folder, cancer_folder
+from utility import getArgvKeyValue, get_cancer_list, ct_folder, cancer_folder
 from data_loader import load_train_data
 
-def help():
-    print("Usage: -L [model] -F [folder]")
+def _help():
+    print("Usage: -L [model] -H [folder]")
     print("-L -- from where to load model")
-    print("-F -- folder to save hashes")
+    print("-H -- file to save hashes")
 
 def dummy_metric(y_true, y_pred):
-    return K.constant(0)
+    return K.mean(y_pred)
 
 model_weights_load_file = None
 
 def check():
     global model_weights_load_file
-    global hashes_save_folder
+    global hashes_save_file
     
     model_weights_load_file = getArgvKeyValue("-L")
     if model_weights_load_file is None: #default value popup
         print("No weights file found specified at '-L' key!", file=os.sys.stderr)
-        help()
+        _help()
         sys.exit(1)
 
     # check file exist
-    isdir = os.path.isfile(model_weights_load_file)
-    if not isdir:        
+    isfile = os.path.isfile(model_weights_load_file)
+    if not isfile:        
         print("File '{}' specified at '-L' key is not exist".format(model_weights_load_file)
                     , file=os.sys.stderr)
-        help()
+        _help()
         sys.exit(2)
 
-    hashes_save_folder = getArgvKeyValue("-F")
-    if hashes_save_folder is None: #default value popup
-        print("No hashes folder specified at '-F' key!", file=os.sys.stderr)
-        help()
+    hashes_save_file = getArgvKeyValue("-H")
+    if hashes_save_file is None: #default value popup
+        print("No hashes file specified at '-H' key!", file=os.sys.stderr)
+        _help()
         sys.exit(3)
-
-    
-    exists = os.path.exists(hashes_save_folder)
-    if not exists:
-        try:
-            os.makedirs(hashes_save_folder)
-        except OSError:
-            print("Cannot create folder '{}' for hashes",format(hashes_save_folder), file=os.sys.stderr)
-            help()
-            sys.exit(4)
 
 check()
 
@@ -78,6 +68,7 @@ if M < len(malignant):
 hashes = None
 
 def append_to_hashes(hashes, extra_hashes, hash_type = -1):
+    #print("append hash ndim={}".format(extra_hashes.ndim))
     if hashes is None:
         hashes = np.insert(extra_hashes, 0, hash_type, axis=1)
     else:
@@ -86,8 +77,10 @@ def append_to_hashes(hashes, extra_hashes, hash_type = -1):
     
 
 last_time = None
+seconds_avg = 0.0
 def print_progressbar(curr, M):
     global last_time
+    global seconds_avg
     chars = 30
     eq_count = curr*chars//M
     if eq_count > chars:
@@ -101,12 +94,14 @@ def print_progressbar(curr, M):
     diff_str = "unknown"
     if last_time is not None:
         delta = time - last_time
-        diff_str = str(delta.seconds)
-        last_time = time
+        seconds_avg = (seconds_avg*(curr-1) + delta.seconds)/curr
+        est_seconds = seconds_avg * (M - curr)
+        diff_str = "{} s".format(int(est_seconds))
+    last_time = time
 
-    print("[{}], ETA: {}s".format(line, diff_str))
+    print("Step #{}: [{}], ETA: {}".format(curr, line, diff_str), flush=True)
 
-for k in range(0, M, cwnd):
+for k in range(0, M//cwnd + 1, 1):
     # get subindexes
     benign_cwnd = benign[k*cwnd:(k+1)*cwnd]
     malignant_cwnd = malignant[k*cwnd:(k+1)*cwnd]
@@ -118,16 +113,18 @@ for k in range(0, M, cwnd):
     malignant_hashes = inner_model.predict([np.expand_dims(data_malignant_cwnd, axis=-1)])
 
     # stack hashes
-    hashes = append_to_hashes(hashes, benign_hashes, 0) # type=0: train benign
-    hashes = append_to_hashes(hashes, malignant_hashes, 1) # type=1: train malignant
+    if len(benign_cwnd) > 0:
+        hashes = append_to_hashes(hashes, benign_hashes, 0) # type=0: train benign
+    if len(malignant_cwnd) > 0:
+        hashes = append_to_hashes(hashes, malignant_hashes, 1) # type=1: train malignant
 
     #print progressbar:
     print_progressbar(k, M//cwnd+1)
 
 
 # save hashes to folder
-print("Saving hashes to {}...".format(hashes_save_folder))
-np.save(hashes_save_folder, hashes)
+print("Saving hashes to {}...".format(hashes_save_file))
+np.save(hashes_save_file, hashes)
 print("Saved!")
 
         
