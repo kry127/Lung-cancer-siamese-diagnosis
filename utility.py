@@ -36,7 +36,7 @@ def get_cancer_list(prefix=None):
     ct_set = np.array(ct_dataset) # get set of all ct images and their masks
     malignant_set = np.array(cancer_dataset) # get ct images containing cancer (call it malignant)
     benign_set = ct_set #np.setxor1d(ct_set, malignant_set) # make list of benign nodules
-    if filter is None:
+    if prefix is None:
         return benign_set, malignant_set
     else:
         return filter_data(benign_set, prefix), filter_data(malignant_set, prefix)
