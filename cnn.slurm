@@ -19,8 +19,8 @@ source ~/activation
 TRAINING_FOLDER=training-list/11
 BATCHSIZE=32
 EPOCHS=25
-STEPS=10
-LEARNING_RATE=0.771
+STEPS=-1
+LEARNING_RATE=0.00077
 
 # create data and algorithm digest
 echo "cnn resnet bs=$BATCHSIZE e=$EPOCHS s=$STEPS lr=$LEARNING_RATE\
