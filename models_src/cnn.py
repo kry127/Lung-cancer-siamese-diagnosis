@@ -1,5 +1,5 @@
 # a script for classic CNN implementation of classification task
-
+# partly looked up here: https://keras.io/examples/cifar10_resnet/
 
 import os
 import keras
@@ -38,9 +38,6 @@ batch_size = int(getArgvKeyValue("-bs", 100)) # how many pairs form loss functio
 epochs_all = int(getArgvKeyValue("-e", 300)) # every epoch training pairs shuffled
 steps_per_epoch = int(getArgvKeyValue("-s", 3)) # how many steps per epoch available
 learning_rate = float(getArgvKeyValue("-lr", 0.06)) # the learning rate should correspond to loss magnitude
-learning_rate_reduce_factor = getArgvKeyValue("-rf")
-if learning_rate_reduce_factor is not None:
-    learning_rate_reduce_factor = float(learning_rate_reduce_factor)
 augmentation = isArgvKeyPresented("-aug")
 
 # loss function parameters
@@ -64,7 +61,6 @@ print ("| -bs | Batch size              | {0:<7} |".format(batch_size))
 print ("| -e  | Epochs all              | {0:<7} |".format(epochs_all))
 print ("| -s  | Steps per epoch         | {0:<7} |".format(steps_per_epoch))
 print ("| -lr | Learing rate            | {0:<7} |".format(learning_rate))
-print ("| -rf | LR (-lr) recude factor  | {0:<7} |".format(str(learning_rate_reduce_factor)))
 print ("| -aug| Augmentation            | {0:<7} |".format(str(augmentation)))
 print ("+-----+-------------------------+---------+")
 print ("|        Loss function parameters         |")
@@ -88,7 +84,7 @@ loader = data_loader.Loader(training_folder, ct_folder, cancer_folder, False, au
 
 # make learning rate schedule
 def lr_schedule(epoch):
-    lr = 1e-3
+    lr = learning_rate
     if epoch > 180:
         lr *= 0.5e-3
     elif epoch > 160:
@@ -122,6 +118,11 @@ def preload_weights():
 
 preload_weights()
 
+# creating sequencer for training
+training_batch_generator = loader.get_training_generator(batch_size)
+# immediately extract bundled validation generator (they share the state)
+validation_batch_generator = training_batch_generator.validation_generator()
+
 # Prepare callbacks for model saving and for learning rate adjustment.
 checkpoint = ModelCheckpoint(filepath=model_weights_save_file,
                              monitor='val_acc',
@@ -135,4 +136,22 @@ lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1),
                                patience=5,
                                min_lr=0.5e-6)
 
-callbacks = [checkpoint, lr_reducer, lr_scheduler]
+terminator = keras.callbacks.TerminateOnNaN()
+
+callbacks = [checkpoint, lr_reducer, lr_scheduler, terminator]
+
+# The model is ready to train!
+if steps_per_epoch <= 0:
+      steps_per_epoch = None
+      if epochs_all <= 0:
+          # no actual training happening
+          print("No training :(")
+
+inner_model.fit_generator(
+    generator=training_batch_generator,
+    validation_data=validation_batch_generator,
+    epochs=epochs_all,
+    steps_per_epoch=steps_per_epoch,
+    verbose=1,
+    shuffle=True,
+    callbacks=callbacks)

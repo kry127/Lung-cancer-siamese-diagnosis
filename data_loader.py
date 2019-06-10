@@ -281,7 +281,7 @@ class Loader:
         for index in id_array:
             if index < self.len_benign():
                 nodule = self.data_benign[index]
-                label = np.array([1, 0])
+                label = np.array([1, 0]) #categorical crossentropy labels
             else:
                 nodule = self.data_malignant[index - self.len_benign()]
                 label = np.array([0, 1])

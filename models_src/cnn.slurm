@@ -9,7 +9,7 @@
 #SBATCH -e log/3d-siamese-training-%j.err
 
 if [ -f /etc/profile.d/modules-basis.sh ]; then
-source /etc/profile.d/modules-basis.sh 
+    source /etc/profile.d/modules-basis.sh 
 fi
 
 module purge
@@ -21,18 +21,9 @@ BATCHSIZE=32
 EPOCHS=25
 STEPS=10
 LEARNING_RATE=0.771
-LEARNING_RATE_REDUCE_FACTOR_KEY="-rf 0.98"
-MARGIN=36
-LAMBDA1=0.001
-LAMBDA2=5
-LAMBDA3=1
-LAMBDA4=1
-LAMBDA5=1
-LAMBDA6=1
-LAMBDAS="$LAMBDA1;$LAMBDA2;$LAMBDA3;$LAMBDA4;$LAMBDA5;$LAMBDA6"
 
 # create data and algorithm digest
-echo "siam resnet bs=$BATCHSIZE e=$EPOCHS s=$STEPS lr=$LEARNING_RATE l=$LAMBDAS m=$MARGIN\
+echo "cnn resnet bs=$BATCHSIZE e=$EPOCHS s=$STEPS lr=$LEARNING_RATE\
 " >> ./$TRAINING_FOLDER/digest.txt
 
 # run HPC task
@@ -59,8 +50,3 @@ $LEARNING_RATE_REDUCE_FACTOR_KEY \
 -V "$TRAINING_FOLDER/visual" \
 -L "$TRAINING_FOLDER/default.model" \
 -S "$TRAINING_FOLDER/default.model"
-
-
-
-# pipeline info:
-# https://hpc.nih.gov/docs/job_dependencies.html
