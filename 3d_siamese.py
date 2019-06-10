@@ -210,7 +210,7 @@ def preload_weights():
 preload_weights()
 
 # creating sequencer
-training_batch_generator = loader.get_training_generator(batch_size)
+training_batch_generator = loader.get_training_pair_generator(batch_size)
 
 # saving model is easy
 #https://stackoverflow.com/questions/52553593/tensorflow-keras-model-save-raise-notimplementederror

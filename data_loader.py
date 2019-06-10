@@ -50,10 +50,78 @@ class Pair_Generator(Sequence):
     def __getitem__(self, idx):
         batch_same = self.index_same[idx * self.batch_size:(idx + 1) * self.batch_size]
         batch_diff = self.index_diff[idx * self.batch_size:(idx + 1) * self.batch_size]
-        return self.loader.get_batch(batch_same, batch_diff)
+        return self.loader.get_pair_batch(batch_same, batch_diff)
 
     def on_epoch_end(self):
         self.shuffle_indices()
+
+    
+class Nodule_Generator(Sequence):
+    def __init__(self, loader, batch_size, train_p = 0.8):
+        """
+        loader -- instance of class Loader
+        batch_size -- size of mini batch
+        train_p -- training data percentage. Other data is validation
+        """
+        self.loader = loader
+        self.batch_size = batch_size
+        self.train_p = train_p
+        if (train_p < 0.0 or train_p > 1.0):
+            raise "Unexpected value of 'train_p' parameter in Nodule Generator"
+
+        self.len_benign = self.loader.len_benign()
+        self.len_malignant = self.loader.len_malignant()
+        self.length = self.len_benign + self.len_malignant
+        self.index = np.arange(self.length)
+
+        print("Generator. len_benign={}, len_malignant={}".format(
+            self.loader.len_benign(), self.loader.len_malignant()))
+
+        #shuffle training set
+        self.shuffle_indices()
+
+    def shuffle_indices(self):
+        np.random.shuffle(self.index)
+            
+    def __len__(self):
+        return int(np.ceil(self.length*self.train_p / float(self.batch_size)))
+
+    def __getitem__(self, idx):
+        id_from = idx * self.batch_size
+        id_to = (idx + 1) * self.batch_size
+        if id_to > self.length * self.train_p:
+            id_to = int(self.length * self.train_p) + 1
+        batch_id = self.index[id_from:id_to]
+        return self.loader.get_single_batch(batch_id)
+
+    def on_epoch_end(self):
+        self.shuffle_indices()
+
+    def validation_generator(self):
+        return Nodule_Validation_Generator(self)
+
+class Nodule_Validation_Generator(Sequence):
+    def __init__(self, nodule_generator):
+        """
+        nodule_generator -- instance of class Nodule Generator
+        """
+        self.nodule_generator = nodule_generator
+        self.length = nodule_generator.length
+        self.train_p = nodule_generator.train_p
+        self.batch_size = nodule_generator.batch_size
+            
+    def __len__(self):
+        return int(np.ceil(self.length*(1-self.train_p) / float(self.batch_size)))
+
+    def __getitem__(self, idx):
+        idx += len(self.nodule_generator)
+        id_from = idx * self.batch_size
+        id_to = (idx + 1) * self.batch_size
+        if id_from <= self.length * self.train_p:
+            id_from = int(self.length * self.train_p) + 1
+        batch_id = self.nodule_generator.index[id_from:id_to]
+        return self.nodule_generator.loader.get_single_batch(batch_id)
+
 
 
 def convert_index_linear_to_triangle(n, index):
@@ -159,16 +227,25 @@ class Loader:
         self.data_malignant = load_train_data(self.malignant_folder, self.train_malignant, augment=self.augmentation)
         self.data_validation_benign = load_train_data(self.benign_folder, self.validation_benign)
         self.data_validation_malignant = load_train_data(self.malignant_folder, self.validation_malignant)
+   
+    def get_training_generator(self, batch_size, train_p = 0.8):
+        return Nodule_Generator(self, batch_size, train_p)
 
-    def get_training_generator(self, batch_size):
+    def get_training_pair_generator(self, batch_size):
         return Pair_Generator(self, batch_size)
 
+    def len_benign(self):
+        return self.data_benign.shape[0]
+
+    def len_malignant(self):
+        return self.data_malignant.shape[0]
+
     def len_benign_benign(self):
-        N = self.data_benign.shape[0]
+        N = self.len_benign()
         return (N - 1) * N // 2
 
     def len_malignant_malignant(self):
-        N = self.data_malignant.shape[0]
+        N = self.len_malignant()
         return (N - 1) * N // 2
 
     def len_different(self):
@@ -197,8 +274,26 @@ class Loader:
             return self.get_benign_benign(index)
         else:
             return self.get_malignant_malignant(index - b)
+            
+    def get_single_batch(self, id_array):
+        nodules = np.ndarray((0,16,16,16))
+        nodules_y = np.ndarray((0, 2))
+        for index in id_array:
+            if index < self.len_benign():
+                nodule = self.data_benign[index]
+                label = np.array([1, 0])
+            else:
+                nodule = self.data_malignant[index - self.len_benign()]
+                label = np.array([0, 1])
+            
+            nodules = np.append(nodules, [nodule], axis=0)
+            nodules_y = np.append(nodules_y, label)
 
-    def get_batch(self, id_same, id_different):
+        # return batch
+        return nodules, nodules_y
+
+
+    def get_pair_batch(self, id_same, id_different):
         pairs = np.ndarray((0,2,16,16,16))
         pairs_y = np.ndarray((0, 1))
         # form same pairs first
