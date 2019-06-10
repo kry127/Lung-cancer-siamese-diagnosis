@@ -86,8 +86,7 @@ fc = keras.layers.Dense(256, kernel_initializer=uni_init)(fc)
 fc = ReLU(negative_slope=0.1)(fc)
 fc = keras.layers.Dense(128, kernel_initializer=uni_init)(fc)
 fc = ReLU(negative_slope=0.1)(fc)
-fc = keras.layers.Dense(2  , kernel_initializer=uni_init)(fc)
-fc = ReLU(negative_slope=0.1)(fc)
+fc = keras.layers.Dense(2  , kernel_initializer=uni_init, activation=keras.activations.softmax)(fc)
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 inner_model = keras.Model(inner_model_input, fc)
