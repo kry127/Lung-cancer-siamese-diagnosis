@@ -48,7 +48,7 @@ def residual_module(layer_in, n_filters):
       layer_out = ReLU(negative_slope=0.1)(layer_out)
       return layer_out
       
-block1 = Conv3D(64, (7,7,7), strides=2, padding='same', activation='linear',
+block1 = Conv3D(64, (7,7,7), strides=1, padding='same', activation='linear',
       kernel_initializer='he_normal')(inner_model_input)
 
 block1 = residual_module(block1, 64) # (16, 16, 16)
