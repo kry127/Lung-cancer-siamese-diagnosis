@@ -290,6 +290,7 @@ class Loader:
             nodules_y = np.append(nodules_y, label)
 
         # return batch
+        np.expand_dims(nodules, axis = -1)
         return nodules, nodules_y
 
 
