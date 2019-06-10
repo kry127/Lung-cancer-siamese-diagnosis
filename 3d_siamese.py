@@ -7,7 +7,7 @@ import time
 import utility
 import data_loader
 from utility import getArgvKeyValue, isArgvKeyPresented
-from models_src.model_ResNet import model
+from models_src.model_VGG import model
 from models_src.custom_layers import distance_layer
 
 vis_regexp = 'vis_(\d\d\d\d).npy'

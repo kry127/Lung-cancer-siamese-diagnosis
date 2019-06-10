@@ -24,7 +24,6 @@ inner_model_input = keras.layers.Input(shape=(16,16,16,1))
 # here types of model:
 # https://www.quora.com/What-is-the-VGG-neural-network
 # https://medium.com/@sidereal/cnns-architectures-lenet-alexnet-vgg-googlenet-resnet-and-more-666091488df5
-# Try big sizes of kernel : 11-16
 # trying ResNet model
 
 uni_init = keras.initializers.RandomUniform(minval=-1, maxval=1, seed=None)
