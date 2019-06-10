@@ -96,9 +96,9 @@ def lr_schedule(epoch):
     print('Learning rate: ', lr)
     return lr
 
-optimizer = keras.optimizers.Adam(lr = lr_schedule(0))
+#optimizer = keras.optimizers.Adam(lr = lr_schedule(0))
 #optimizer = keras.optimizers.SGD(lr=learning_rate, momentum=0.3)
-#optimizer = keras.optimizers.RMSprop(lr = learning_rate)
+optimizer = keras.optimizers.RMSprop()
 inner_model.compile(
     optimizer=optimizer,
     loss=keras.losses.categorical_crossentropy,
