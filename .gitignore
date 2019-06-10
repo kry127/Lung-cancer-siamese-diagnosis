@@ -2,6 +2,8 @@
 all2/
 cancer/
 Models/
+hashes/
+plots/
 *.png
 *.rar
 *.model

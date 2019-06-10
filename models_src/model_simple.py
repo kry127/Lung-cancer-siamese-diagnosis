@@ -9,6 +9,7 @@ from models_src.custom_layers import sqr_distance_layer
 # Making siamese network for nodules comparison
 
 # More info about Keras Layers: https://keras.io/layers/core/, https://keras.io/layers/convolutional/
+# MNIST siamese: https://keras.io/examples/mnist_siamese/
 # Good presentation of Mail.ru https://logic.pdmi.ras.ru/~sergey/teaching/dl2017/DLNikolenko-MailRu-05.pdf
 # ResNet: https://neurohive.io/ru/vidy-nejrosetej/resnet-34-50-101/
 

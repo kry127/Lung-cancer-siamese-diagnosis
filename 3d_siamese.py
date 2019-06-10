@@ -1,5 +1,4 @@
 import keras
-import tensorflow as tf
 from keras import backend as K
 import re
 import os

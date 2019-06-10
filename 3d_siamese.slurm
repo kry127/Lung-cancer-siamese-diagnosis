@@ -16,15 +16,15 @@ module purge
 source ~/activation
 
 # specify training folder for containing training and validation links
-TRAINING_FOLDER=training-list/11
-BATCHSIZE=128
-EPOCHS=3
-STEPS=-1
-LEARNING_RATE=0.34
+TRAINING_FOLDER=training-list/13
+BATCHSIZE=32
+EPOCHS=25
+STEPS=10
+LEARNING_RATE=0.771
 LEARNING_RATE_REDUCE_FACTOR_KEY="-rf 0.98"
-MARGIN=30
-LAMBDA1=5.6
-LAMBDA2=7.9
+MARGIN=36
+LAMBDA1=0.001
+LAMBDA2=5
 LAMBDA3=1
 LAMBDA4=1
 LAMBDA5=1
