@@ -27,26 +27,14 @@ echo "cnn resnet bs=$BATCHSIZE e=$EPOCHS s=$STEPS lr=$LEARNING_RATE\
 " >> ./$TRAINING_FOLDER/digest.txt
 
 # run HPC task
-srun python3 3d_siamese.py \
+srun python3 cnn.py \
 -F $TRAINING_FOLDER \
 -bs $BATCHSIZE      \
 -e  $EPOCHS     \
 -s  $STEPS        \
--sb           \
 -lr $LEARNING_RATE \
-$LEARNING_RATE_REDUCE_FACTOR_KEY \
 -aug         \
 -vis        \
--k  1        \
--si 3       \
--th 15.0       \
--m  $MARGIN     \
--l1 $LAMBDA1    \
--l2 $LAMBDA2    \
--l3 $LAMBDA3    \
--l4 $LAMBDA4    \
--l5 $LAMBDA5    \
--l6 $LAMBDA6    \
 -V "$TRAINING_FOLDER/visual" \
 -L "$TRAINING_FOLDER/default.model" \
 -S "$TRAINING_FOLDER/default.model"
