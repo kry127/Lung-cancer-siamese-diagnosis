@@ -4,9 +4,9 @@
 #SBATCH --cpus-per-task=1
 #SBATCH -p tornado-k40
 #SBATCH -t 10-00:00:00
-#SBATCH -J 3d-siamese-training 
-#SBATCH -o log/3d-siamese-training-%j.out
-#SBATCH -e log/3d-siamese-training-%j.err
+#SBATCH -J cnn-training 
+#SBATCH -o log/cnn-training-%j.out
+#SBATCH -e log/cnn-training-%j.err
 
 if [ -f /etc/profile.d/modules-basis.sh ]; then
     source /etc/profile.d/modules-basis.sh 
