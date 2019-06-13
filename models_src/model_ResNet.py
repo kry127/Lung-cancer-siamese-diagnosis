@@ -3,7 +3,7 @@ import keras
 from keras.layers import Conv3D, MaxPooling3D, Activation, ReLU, add, BatchNormalization
 from keras import regularizers
 
-from models_src.custom_layers import sqr_distance_layer
+from models_src.custom_layers import distance_layer
 
 # Making siamese network for nodules comparison
 
@@ -47,10 +47,16 @@ def residual_module(layer_in, n_filters):
       layer_out = ReLU(negative_slope=0.1)(layer_out)
       return layer_out
       
-block1 = Conv3D(64, (7,7,7), strides=1, padding='same', activation='linear',
+block1 = Conv3D(64, (7,7,7), strides=1, padding='same',
       kernel_initializer='he_normal')(inner_model_input)
+merblock1ge_input = ReLU(negative_slope=0.1)(block1)
 
 block1 = residual_module(block1, 64) # (16, 16, 16)
+block1 = residual_module(block1, 64)
+block1 = residual_module(block1, 64)
+block1 = residual_module(block1, 64)
+block1 = residual_module(block1, 64)
+block1 = residual_module(block1, 64)
 block1 = residual_module(block1, 64)
 block1 = residual_module(block1, 64)
 block2 = keras.layers.MaxPooling3D(pool_size=2)(block1) # (8, 8, 8)
@@ -58,7 +64,20 @@ block2 = residual_module(block2, 128)
 block2 = residual_module(block2, 128)
 block2 = residual_module(block2, 128)
 block2 = residual_module(block2, 128)
+block2 = residual_module(block2, 128)
+block2 = residual_module(block2, 128)
+block2 = residual_module(block2, 128)
+block2 = residual_module(block2, 128)
 block3 = keras.layers.MaxPooling3D(pool_size=2)(block2) # (4, 4, 4)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
+block3 = residual_module(block3, 256)
 block3 = residual_module(block3, 256)
 block3 = residual_module(block3, 256)
 block3 = residual_module(block3, 256)
@@ -72,16 +91,17 @@ block4 = residual_module(block4, 512)
 flatten = keras.layers.AveragePooling3D(pool_size=2)(block4) # (1, 1, 1)
 
 fc = keras.layers.Flatten()(flatten)
+fc = keras.layers.Dense(1024, kernel_initializer=uni_init, activation=keras.activations.sigmoid)(fc)
 fc = keras.layers.Dense(1024, kernel_initializer=uni_init)(fc)
 fc = ReLU(negative_slope=0.1)(fc)
-fc = keras.layers.Dense(2  , kernel_initializer=uni_init, activation=keras.activations.softmax)(fc)
+fc = keras.layers.Dense(8  , kernel_initializer=uni_init, activation=keras.activations.linear)(fc)
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 inner_model = keras.Model(inner_model_input, fc)
 ct_img_model1 = inner_model(ct_img1_r)
 ct_img_model2 = inner_model(ct_img2_r)
 
-merge_layer_lambda = keras.layers.Lambda(sqr_distance_layer)
+merge_layer_lambda = keras.layers.Lambda(distance_layer)
 #merge_layer_lambda = keras.layers.Lambda(difference_layer)
 merge_layer = merge_layer_lambda([ct_img_model1, ct_img_model2])
 # add FC layer to make similarity score
