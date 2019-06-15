@@ -39,19 +39,20 @@ def vgg_block(layer_in, n_filters, n_conv):
       layer_in = MaxPooling3D((2,2,2), strides=2)(layer_in)
       return layer_in
       
-block = inner_model_input #(16, 16, 16)
+block = Conv3D(64, (7,7,7), strides=1, padding='same',
+      kernel_initializer='he_normal')(inner_model_input)
+merblock1ge_input = ReLU(negative_slope=0.1)(block) #(16, 16, 16)
 
-block = vgg_block(block, 64 , 2) #(8, 8, 8)
-block = vgg_block(block, 128, 2) #(4, 4, 4)
-block = vgg_block(block, 256, 4) #(2, 2, 2)
-block = vgg_block(block, 512, 4) #(1, 1, 1)
+block = vgg_block(block, 64 , 8) #(8, 8, 8)
+block = vgg_block(block, 128, 8) #(4, 4, 4)
+block = vgg_block(block, 256, 15) #(2, 2, 2)
+block = vgg_block(block, 512, 3) #(1, 1, 1)
 
 fc = keras.layers.Flatten()(block)
-fc = keras.layers.Dense(4096, kernel_initializer=uni_init)(fc)
+fc = keras.layers.Dense(1024, kernel_initializer=uni_init, activation=keras.activations.sigmoid)(fc)
+fc = keras.layers.Dense(1024, kernel_initializer=uni_init)(fc)
 fc = ReLU(negative_slope=0.1)(fc)
-fc = keras.layers.Dense(4096, kernel_initializer=uni_init)(fc)
-fc = ReLU(negative_slope=0.1)(fc)
-fc = keras.layers.Dense(1000, kernel_initializer=uni_init, activation=keras.activations.softmax)(fc)
+fc = keras.layers.Dense(16, kernel_initializer=uni_init, activation=keras.activations.linear)(fc)
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 inner_model = keras.Model(inner_model_input, fc)

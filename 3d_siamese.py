@@ -396,7 +396,8 @@ def vis():
 # creating model checkpoints
 save_callback = keras.callbacks.LambdaCallback(on_epoch_end=save_weights)
 end_checks_callback = keras.callbacks.LambdaCallback(on_epoch_end=end_checks)
-callbacks = [save_callback, end_checks_callback,
+tensorboard_callback = keras.callbacks.TensorBoard(log_dir="tb_logs")
+callbacks = [save_callback, end_checks_callback, tensorboard_callback,
       keras.callbacks.TerminateOnNaN(),
 ]
 

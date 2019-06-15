@@ -94,7 +94,7 @@ fc = keras.layers.Flatten()(flatten)
 fc = keras.layers.Dense(1024, kernel_initializer=uni_init, activation=keras.activations.sigmoid)(fc)
 fc = keras.layers.Dense(1024, kernel_initializer=uni_init)(fc)
 fc = ReLU(negative_slope=0.1)(fc)
-fc = keras.layers.Dense(8  , kernel_initializer=uni_init, activation=keras.activations.linear)(fc)
+fc = keras.layers.Dense(16  , kernel_initializer=uni_init, activation=keras.activations.linear)(fc)
 
 # Next, we should twin this network, and make a layer, that calculates energy between output of two networks
 inner_model = keras.Model(inner_model_input, fc)

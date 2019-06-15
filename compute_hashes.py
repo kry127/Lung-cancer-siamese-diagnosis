@@ -11,18 +11,21 @@ from utility import getArgvKeyValue, get_cancer_list, ct_folder, cancer_folder
 from data_loader import load_train_data
 
 def _help():
-    print("Usage: -L [model] -H [folder]")
-    print("-L -- from where to load model")
-    print("-H -- file to save hashes")
+    print("Usage: -L [model] -H [hash folder] -F [train folder]")
+    print("-L -- file from where to load model weights")
+    print("-H -- file where to save hashes")
+    print("-F -- folder of training folder (training set is not included in hashes list)")
 
 def dummy_metric(y_true, y_pred):
     return K.mean(y_pred)
 
 model_weights_load_file = None
+training_folder = None
 
 def check():
     global model_weights_load_file
     global hashes_save_file
+    global training_folder
     
     model_weights_load_file = getArgvKeyValue("-L")
     if model_weights_load_file is None: #default value popup
@@ -44,6 +47,17 @@ def check():
         _help()
         sys.exit(3)
 
+    training_folder = getArgvKeyValue("-F")
+    
+    # check folder exists
+    if training_folder is not None:
+        isdir = os.path.isdir(training_folder)
+        if not isdir:        
+            print("File '{}' specified at '-F' key is not a directory".format(training_folder)
+                        , file=os.sys.stderr)
+            _help()
+            sys.exit(4)
+
 check()
 
 
@@ -57,6 +71,14 @@ if exists:
 
 # get hashes to calculate
 benign, malignant = get_cancer_list("img")
+# filter hashes to calculate 
+if training_folder is not None:
+    train_benign = np.load(os.path.join(training_folder, "train_benign.npy"))
+    train_malignant = np.load(os.path.join(training_folder, "train_malignant.npy"))
+
+    benign = np.array(list(set(benign) - set(train_benign)))
+    malignant = np.array(list(set(malignant) - set(train_malignant)))
+
 # get submodel
 inner_model = model.layers[4]
 # conversion window

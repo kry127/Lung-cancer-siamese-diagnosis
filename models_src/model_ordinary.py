@@ -38,7 +38,7 @@ inner_model.add(Flatten())
 inner_model.add(Dense(2048, kernel_initializer=uni_init))
 inner_model.add(ReLU(negative_slope=0.1))
 inner_model.add(Dense(2048, kernel_initializer=uni_init, activation=keras.activations.sigmoid))
-inner_model.add(Dense(2,  kernel_initializer=uni_init, activation='linear'))
+inner_model.add(Dense(16,  kernel_initializer=uni_init, activation='linear'))
 
 ct_img_model1 = inner_model(ct_img1_r)
 ct_img_model2 = inner_model(ct_img2_r)
