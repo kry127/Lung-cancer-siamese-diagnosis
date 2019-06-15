@@ -16,7 +16,7 @@ module purge
 source ~/activation
 
 
-TRAINING_FOLDER=training-list/14
+TRAINING_FOLDER=training-list/test1
 
 MODEL_PATH="./$TRAINING_FOLDER/default.model"
 HASH_FILE="hashes/hash_$(date "+%d.%m.%y_%H.%M").npy"
