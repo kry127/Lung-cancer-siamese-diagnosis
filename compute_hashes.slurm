@@ -23,4 +23,5 @@ HASH_FILE="hashes/hash_$(date "+%d.%m.%y_%H.%M").npy"
 
 srun python3 compute_hashes.py \
 -L $MODEL_PATH \
--H $HASH_FILE
+-H $HASH_FILE \
+-F $TRAINING_FOLDER
