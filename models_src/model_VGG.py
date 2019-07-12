@@ -3,7 +3,7 @@ import keras
 from keras.layers import Conv3D, MaxPooling3D, Activation, ReLU, add, BatchNormalization
 from keras import regularizers
 
-from models_src.custom_layers import sqr_distance_layer
+from models_src.custom_layers import distance_layer
 
 # Making siamese network for nodules comparison
 
@@ -44,8 +44,8 @@ block = Conv3D(64, (7,7,7), strides=1, padding='same',
 merblock1ge_input = ReLU(negative_slope=0.1)(block) #(16, 16, 16)
 
 block = vgg_block(block, 64 , 8) #(8, 8, 8)
-block = vgg_block(block, 128, 8) #(4, 4, 4)
-block = vgg_block(block, 256, 15) #(2, 2, 2)
+block = vgg_block(block, 128, 6) #(4, 4, 4)
+block = vgg_block(block, 256, 5) #(2, 2, 2)
 block = vgg_block(block, 512, 3) #(1, 1, 1)
 
 fc = keras.layers.Flatten()(block)
@@ -59,7 +59,7 @@ inner_model = keras.Model(inner_model_input, fc)
 ct_img_model1 = inner_model(ct_img1_r)
 ct_img_model2 = inner_model(ct_img2_r)
 
-merge_layer_lambda = keras.layers.Lambda(sqr_distance_layer)
+merge_layer_lambda = keras.layers.Lambda(distance_layer)
 #merge_layer_lambda = keras.layers.Lambda(difference_layer)
 merge_layer = merge_layer_lambda([ct_img_model1, ct_img_model2])
 # add FC layer to make similarity score

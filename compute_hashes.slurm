@@ -16,10 +16,10 @@ module purge
 source ~/activation
 
 
-TRAINING_FOLDER=training-list/test1
+TRAINING_FOLDER=training-list/test2_vgg
 
 MODEL_PATH="./$TRAINING_FOLDER/default.model"
-HASH_FILE="hashes/hash_$(date "+%d.%m.%y_%H.%M").npy"
+HASH_FILE="./$TRAINING_FOLDER/hash_$(date "+%d.%m.%y_%H.%M").npy"
 
 srun python3 compute_hashes.py \
 -L $MODEL_PATH \

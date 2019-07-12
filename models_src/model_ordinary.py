@@ -4,7 +4,7 @@ from keras import backend as K
 from keras.layers import Conv3D, SpatialDropout3D, MaxPooling3D, AvgPool3D, Dropout, Flatten, Dense, ReLU
 from keras import regularizers
 
-from models_src.custom_layers import sqr_distance_layer
+from models_src.custom_layers import distance_layer
 
 ct_img1 = keras.layers.Input(shape=(16,16,16))
 ct_img2 = keras.layers.Input(shape=(16,16,16))
@@ -43,7 +43,7 @@ inner_model.add(Dense(16,  kernel_initializer=uni_init, activation='linear'))
 ct_img_model1 = inner_model(ct_img1_r)
 ct_img_model2 = inner_model(ct_img2_r)
 
-merge_layer_lambda = keras.layers.Lambda(sqr_distance_layer)
+merge_layer_lambda = keras.layers.Lambda(distance_layer)
 merge_layer = merge_layer_lambda([ct_img_model1, ct_img_model2])
 
 # Finally, creating model with two inputs 'mnist_img' 1 and 2 and output 'final layer'
